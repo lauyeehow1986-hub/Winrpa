@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "rpa-dev-mcp": {
+      "command": "python",
+      "args": ["mcp_server/rpa_dev_mcp.py"],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

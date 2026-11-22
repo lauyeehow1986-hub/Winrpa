@@ -1,0 +1,14 @@
+^\.agents$
+^mcp_server$
+^mcp_config\.example\.json$
+^ANTIGRAVITY_MASTER_PROMPT\.md$
+^cran-comments\.md$
+^\.github$
+^revdep$
+^README\.Rmd$
+^_pkgdown\.yml$
+^\.antigravity$
+^docs$
+^\.git$
+^\.gitignore$
+^starter_pkg$

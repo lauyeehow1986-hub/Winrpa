@@ -1,0 +1,12 @@
+src/*.o
+src/*.so
+src/*.dll
+src/symbols.rds
+*.tar.gz
+*.Rcheck/
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+__pycache__/
+*.pyc
