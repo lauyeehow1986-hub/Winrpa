@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>winrpa — Native C++17 Desktop UI Automation &amp; Input Control for R</title>
+  <meta name="description" content="Automate Windows desktop applications from R via native C++17 / cpp11 bindings to Microsoft UI Automation, Per-Monitor V2 DPI SendInput, transactional clipboards, and global kill-switch hotkeys." />
+  <meta property="og:title" content="winrpa — Native Desktop UI Automation for R" />
+  <meta property="og:description" content="Dedicated MTA COM UIA worker, Per-Monitor V2 DPI mouse & Unicode/scancode input, non-destructive clipboard transactions, and zero-hang CRAN-clean C++17 lifecycle." />
+  <meta property="og:image" content="https://lauyeehow1986-hub.github.io/Winrpa/assets/live-notepad-automation.png" />
+  <meta property="og:url" content="https://lauyeehow1986-hub.github.io/Winrpa/" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ======================== Sticky Top Navbar ======================== -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark mono">RPA</span>
+        <span>winrpa</span>
+        <span class="brand-ver mono">v0.1.0</span>
+      </a>
+
+      <nav class="nav-links" id="nav-links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#api">API Explorer</a>
+        <a href="#verification">Verification</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a class="btn-icon" href="https://github.com/lauyeehow1986-hub/Winrpa" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <button type="button" class="btn-icon" id="theme-toggle" aria-pressed="false">Light Mode</button>
+        <button type="button" class="btn-icon nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ======================== Hero Section ======================== -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-grid">
+          <div>
+            <div class="badge-row">
+              <span class="pill pill-indigo">C++17 + cpp11 Native</span>
+              <span class="pill pill-sky">44 Functions + 4 S3 Methods</span>
+              <span class="pill pill-green">64 Tests PASS | CRAN Check 0/0/0</span>
+            </div>
+
+            <h1>
+              <span class="gradient-text">Native Desktop RPA for R.</span><br />
+              Zero Python. Zero Slow Bridges.
+            </h1>
+
+            <p class="hero-lead">
+              <strong>winrpa</strong> binds directly to Microsoft UI Automation on a dedicated
+              Multi-Threaded Apartment (MTA) COM worker alongside Per-Monitor V2 DPI
+              <code>SendInput</code>, transactional clipboards, <code>Ctrl+Alt+F12</code> emergency abort guards,
+              and 24-bit window screenshots.
+            </p>
+
+            <div class="install-box">
+              <code id="install-cmd">remotes::install_github("lauyeehow1986-hub/Winrpa")</code>
+              <button type="button" class="btn-copy" data-copy-target="install-cmd">Copy</button>
+            </div>
+
+            <div class="cta-row">
+              <a class="btn-primary" href="#api">Explore 44+ API Functions</a>
+              <a class="btn-secondary" href="#screenshots">View Screenshots &amp; Live Output</a>
+              <a class="btn-secondary" href="https://github.com/lauyeehow1986-hub/Winrpa" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+            </div>
+          </div>
+
+          <div>
+            <div class="code-window">
+              <div class="code-window-bar">
+                <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+                <span class="code-title mono">quickstart.R</span>
+                <button type="button" class="btn-copy" data-copy-target="hero-code">Copy</button>
+              </div>
+              <pre><code class="lang-r" id="hero-code">library(winrpa)
+
+# Launch Notepad visibly & wait deterministically
+rpa_launch("notepad.exe")
+win <- rpa_wait_for(
+  function() tryCatch(rpa_window(class_name = "Notepad"), error = function(e) NULL),
+  timeout = 5, interval = 0.05, label = "Notepad window"
+)
+
+# Pipe-friendly UIA control lookup & multi-mode input
+editor <- rpa_find(win, control_type = "Document")
+editor |>
+  rpa_type("Hello from winrpa! (Unicode: café 日本語)\n", mode = "unicode") |>
+  rpa_type("Hardware scancode test 123\n", mode = "scancode", delay_ms = 5L)
+
+# Capture crisp 24-bit BMP without stealing focus
+rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="metrics-strip">
+          <div class="metric-card">
+            <div class="metric-val mono">44 + 4 S3</div>
+            <div class="metric-lbl">Exported functions &amp; S3 print/format methods</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val mono">8 Patterns</div>
+            <div class="metric-lbl">UIA Invoke, Value, Toggle, Selection, Expand, Scroll, Grid &amp; Table</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val mono">64 / 0 / 0</div>
+            <div class="metric-lbl">testthat assertions pass; R CMD check 0 err / 0 warn / 0 note</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val mono">0-Hang DLL</div>
+            <div class="metric-lbl">Clean <code>pkgload::unload()</code>, reload &amp; process exit</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== 8-Pillar Features ======================== -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">Capabilities</span>
+          <h2>All 8 Automation &amp; Safety Pillars</h2>
+          <p>Built from first principles in pure C++17 and <code>cpp11</code> to solve the hardest Windows desktop automation failure modes: COM threading conflicts, DPI drift, dropped RichEdit keystrokes, and loader-lock exit hangs.</p>
+        </div>
+
+        <div class="features-grid">
+          <article class="feature-card">
+            <div class="feature-icon mono">01</div>
+            <h3>MTA COM UI Automation</h3>
+            <p>Dedicated <code>COINIT_MULTITHREADED</code> worker isolates <code>IUIAutomation</code> from R's STA GUI thread. Supports bounded subtree inspection, O(1) cached fetches, regex matching, and <code>GridPattern</code>/<code>TablePattern</code> extraction to R <code>data.frame</code>.</p>
+            <div class="tag-list">
+              <span class="tag">IUIAutomation</span>
+              <span class="tag">rpa_inspect_tree</span>
+              <span class="tag">rpa_read_table</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">02</div>
+            <h3>Multi-Mode Keyboard &amp; Secrets</h3>
+            <p>Supports <code>auto</code>, <code>value</code>, <code>unicode</code> (grouped UTF-16 surrogate pairs + &gt;=2ms yield for WinUI/RichEditD2DPT), <code>scancode</code>, and transactional <code>paste</code>. RAII <code>ModifierGuard</code> unwinds chords on error; <code>secret = TRUE</code> blocks clipboard exposure.</p>
+            <div class="tag-list">
+              <span class="tag">KEYEVENTF_UNICODE</span>
+              <span class="tag">RAII Chords</span>
+              <span class="tag">secret = TRUE</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">03</div>
+            <h3>Per-Monitor V2 DPI &amp; VirtualDesk</h3>
+            <p>Queries effective per-monitor DPI via <code>GetDpiForMonitor()</code> and normalizes virtual desktop coordinates onto <code>0..65535</code> with <code>MOUSEEVENTF_VIRTUALDESK</code>, so clicks hit negative-coordinate left/upper displays accurately.</p>
+            <div class="tag-list">
+              <span class="tag">Negative X/Y Safe</span>
+              <span class="tag">E_ACCESSDENIED Safe</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">04</div>
+            <h3>Transactional Clipboard</h3>
+            <p><code>rpa_with_clipboard()</code> snapshots <code>CF_UNICODETEXT</code>, registers an immediate <code>on.exit()</code> restore, runs temporary payloads, and restores user contents even on error. Backed by <code>ClipboardGuard</code> (5&times;15ms retry backoff).</p>
+            <div class="tag-list">
+              <span class="tag">on.exit Restore</span>
+              <span class="tag">5x15ms Retry</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">05</div>
+            <h3>Kill-Switch &amp; Key Hook Ring</h3>
+            <p>Background <code>GetMessageW()</code> pump registers system-wide <code>Ctrl+Alt+F12</code> (<code>RegisterHotKey</code>) flipping a lock-free atomic abort flag, plus a <code>WH_KEYBOARD_LL</code> 2048-slot ring buffer drained as a timestamped <code>data.frame</code>.</p>
+            <div class="tag-list">
+              <span class="tag">Ctrl+Alt+F12</span>
+              <span class="tag">WH_KEYBOARD_LL</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">06</div>
+            <h3>Deterministic Waits &amp; Dumps</h3>
+            <p><code>rpa_wait_for()</code>, <code>rpa_wait_until_gone()</code>, and <code>rpa_wait_until_enabled()</code> poll at &lt;=50ms chunks with abort checks. Setting <code>options(winrpa.debug_dir = ...)</code> automatically writes <code>.log</code> + UIA tree + <code>.bmp</code> snapshots on timeout.</p>
+            <div class="tag-list">
+              <span class="tag">&lt;=50ms Abort Check</span>
+              <span class="tag">winrpa.debug_dir</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">07</div>
+            <h3>Window &amp; Desktop Capture</h3>
+            <p><code>rpa_screenshot()</code> captures occluded windows via <code>PrintWindow(..., PW_RENDERFULLCONTENT)</code> with automatic <code>BitBlt</code> fallback and writes standard 24-bit BMP images directly in C++ with zero external image library dependencies.</p>
+            <div class="tag-list">
+              <span class="tag">PW_RENDERFULLCONTENT</span>
+              <span class="tag">24-bit BMP</span>
+            </div>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-icon mono">08</div>
+            <h3>CRAN Six-Sigma Engineering</h3>
+            <p>Pure ASCII R sources, strict <code>-Wall -Wextra -Wconversion</code> clean compilation, non-Windows stub errors for cross-OS CRAN builds, recoverable MTA worker restarts, and <code>reg.finalizer(..., onexit = TRUE)</code> clean process teardown.</p>
+            <div class="tag-list">
+              <span class="tag">Cross-Platform Stubs</span>
+              <span class="tag">Zero-Hang Exit</span>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== Screenshot Gallery ======================== -->
+    <section class="section" id="screenshots">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">Screenshots &amp; Visual Proof</span>
+          <h2>Real Windows 11 Session Outputs &amp; Architecture Visuals</h2>
+          <p>Click any visual below to open it in the fullscreen lightbox viewer (supports arrow keys &amp; Escape).</p>
+        </div>
+
+        <!-- Featured Hero Visual -->
+        <div class="gallery-featured">
+          <article class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="Live Notepad Automation Showcase (Unicode, Scancode & Paste)"
+            data-caption="Demonstrates rpa_launch('notepad.exe'), Document control discovery, grouped UTF-16 Unicode input, 5ms hardware scancodes, and transactional clipboard paste. Run source('docs/capture_screenshots.R') in RStudio to refresh from your live desktop.">
+            <div class="shot-media">
+              <img src="assets/live-notepad-automation.png" alt="winrpa Live Notepad automation preview showing Unicode, scancode, and transactional paste modes" loading="eager" />
+              <span class="shot-zoom-pill">Click to Zoom</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>1. Windows 11 Notepad Multi-Mode Automation &amp; BMP Capture</h3>
+                <span class="pill pill-sky">Preview / Live Script Ready</span>
+              </div>
+              <p>Shows <code>rpa_launch()</code>, pipe chaining into <code>rpa_type()</code> across <code>unicode</code>, <code>scancode</code>, and <code>paste</code> modes, plus <code>rpa_screenshot()</code> capture.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- Secondary 2x2 Grid -->
+        <div class="gallery-grid">
+          <article class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="Verified RStudio Output: UIA Element & Subtree Inspection"
+            data-caption="Observed live Windows 11 RStudio output from Untitled - Notepad (hwnd=0x40A14, pid=24068): rpa_element_info() cached fields and rpa_inspect_tree() nodes 1-15.">
+            <div class="shot-media">
+              <img src="assets/console-uia-tree.png" alt="Verified RStudio output for print(win), rpa_element_info(), and rpa_inspect_tree()" loading="lazy" />
+              <span class="shot-zoom-pill">Zoom</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>2. UIA Hierarchy &amp; O(1) Cached Info</h3>
+                <span class="pill pill-green">Verified Output</span>
+              </div>
+              <p>Live Windows 11 RStudio inspection of Notepad's RichEdit <code>Document</code> node and Fluent markdown toolbar buttons.</p>
+            </div>
+          </article>
+
+          <article class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="Verified RStudio Output: Kill-Switch, WH_KEYBOARD_LL Hook, Timeout Dump & Reload"
+            data-caption="Observed Windows 11 output verifying Ctrl+Alt+F12 abort propagation, ring-buffer vk_code 123/162/164 captures, winrpa.debug_dir log dumps, and zero-hang pkgload::unload() / devtools::load_all().">
+            <div class="shot-media">
+              <img src="assets/console-killswitch-hook.png" alt="Verified RStudio output for killswitch abort, keyboard hook ring buffer, timeout dump, and clean reload" loading="lazy" />
+              <span class="shot-zoom-pill">Zoom</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>3. Kill-Switch, Key Hook &amp; Zero-Hang Reload</h3>
+                <span class="pill pill-green">Verified Output</span>
+              </div>
+              <p>Live proof of emergency <code>Ctrl+Alt+F12</code> abort, hardware scan code telemetry, forensic timeout logs, and clean DLL unload.</p>
+            </div>
+          </article>
+
+          <article class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="Per-Monitor V2 DPI & VirtualDesk Negative-Coordinate Mapping"
+            data-caption="Exact integer normalization mapping negative secondary monitor pixel (-960, 540) inside a 3840x1080 Virtual Screen (vx=-1920) to normalized SendInput coordinates (16388, 32798).">
+            <div class="shot-media">
+              <img src="assets/dpi-virtualdesk.png" alt="Diagram showing VirtualDesk coordinate normalization for negative multi-monitor coordinates" loading="lazy" />
+              <span class="shot-zoom-pill">Zoom</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>4. Multi-Monitor VirtualDesk Normalization</h3>
+                <span class="pill pill-indigo">Geometry Spec</span>
+              </div>
+              <p>Visualizes exact integer mapping onto <code>0..65535</code> across mixed 125%/150% DPI monitors with negative coordinates.</p>
+            </div>
+          </article>
+
+          <article class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="C++17 Thread Isolation & MTA COM Worker Architecture"
+            data-caption="Four-layer native architecture showing R's STA GUI thread, cpp11 boundary, COINIT_MULTITHREADED UIA worker, DPI/SendInput engine, and background RegisterHotKey/WH_KEYBOARD_LL thread.">
+            <div class="shot-media">
+              <img src="assets/arch-threading.png" alt="Architecture flowchart showing R main thread, cpp11 boundary, MTA COM worker, SendInput, and hook threads" loading="lazy" />
+              <span class="shot-zoom-pill">Zoom</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>5. C++17 Native Threading Architecture</h3>
+                <span class="pill pill-indigo">Architecture</span>
+              </div>
+              <p>Shows how MTA COM UI Automation and OS message loops stay isolated from R's GUI loop and exit without loader-lock deadlocks.</p>
+            </div>
+          </article>
+        </div>
+
+        <details class="capture-callout">
+          <summary>How to capture fresh live Windows 11 screenshots directly from your desktop (1 command)</summary>
+          <div class="capture-callout-body">
+            <p>Run this from your <code>winrpa</code> repository root inside R or RStudio to drive Windows 11 Notepad live with <code>winrpa</code>, snap the window via <code>rpa_screenshot()</code>, and convert the BMP to <code>docs/assets/live-notepad-automation.png</code> using built-in Windows .NET Graphics (no extra R packages needed):</p>
+            <div class="install-box" style="margin-bottom: 0;">
+              <code id="cap-cmd">source("docs/capture_screenshots.R")</code>
+              <button type="button" class="btn-copy" data-copy-target="cap-cmd">Copy</button>
+            </div>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- ======================== Interactive Workflows ======================== -->
+    <section class="section" id="workflows">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">Recipes</span>
+          <h2>Interactive R Workflow Playbook</h2>
+          <p>Switch tabs to inspect copy-pasteable R scripts covering every major automation and safety pattern in <code>winrpa</code>.</p>
+        </div>
+
+        <div class="tabs-bar" id="workflow-tabs" role="tablist" aria-label="Workflow recipes"></div>
+
+        <div class="workflow-panel">
+          <div class="workflow-notes">
+            <h3 id="wf-title">Loading workflow...</h3>
+            <p id="wf-summary"></p>
+            <ul id="wf-bullets"></ul>
+          </div>
+
+          <div class="code-window">
+            <div class="code-window-bar">
+              <div class="dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span class="code-title mono" id="wf-filename">workflow.R</span>
+              <button type="button" class="btn-copy" id="wf-copy-btn">Copy</button>
+            </div>
+            <pre><code id="wf-code"></code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== Architecture Deep Dive ======================== -->
+    <section class="section" id="architecture">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">Systems Design</span>
+          <h2>Engineered for Reliability on Windows Desktops &amp; CRAN</h2>
+          <p>Every design choice eliminates classic Win32 + R C-extension pitfalls without pulling external runtime dependencies.</p>
+        </div>
+
+        <div class="arch-grid">
+          <div class="shot-card" tabindex="0" role="button" data-lightbox
+            data-title="winrpa 4-Layer Native Threading Architecture"
+            data-caption="Detailed thread isolation across R (STA), cpp11 boundary, MTA COM worker, Win32 DPI/Input/Clipboard, and hotkey/hook message pump.">
+            <div class="shot-media">
+              <img src="assets/arch-threading.png" alt="winrpa 4-layer architecture diagram" loading="lazy" />
+              <span class="shot-zoom-pill">Expand Diagram</span>
+            </div>
+            <div class="shot-body">
+              <div class="shot-meta">
+                <h3>Dedicated Worker Isolation</h3>
+                <span class="pill pill-indigo">src/mta_worker.cpp</span>
+              </div>
+              <p>Click diagram to zoom. COM interfaces run on an MTA thread; OS hotkeys &amp; hooks run on a dedicated <code>GetMessageW()</code> pump.</p>
+            </div>
+          </div>
+
+          <div class="arch-list">
+            <div class="arch-item">
+              <h3>MTA vs STA Thread Isolation</h3>
+              <p>RGui and RStudio initialize COM on the main thread as Single-Threaded Apartment (STA). Running <code>CoInitializeEx(COINIT_MULTITHREADED)</code> on the main thread fails with <code>RPC_E_CHANGED_MODE</code>. <code>winrpa</code> spins up an isolated C++17 worker thread that owns <code>IUIAutomation</code> cleanly.</p>
+            </div>
+
+            <div class="arch-item">
+              <h3>Zero-Hang Exit &amp; Reload Safety</h3>
+              <p>Windows R exits via <code>ExitProcess()</code> without calling <code>.onUnload()</code>, where joining C++ threads inside <code>DllMain(DLL_PROCESS_DETACH)</code> deadlocks on the OS loader lock. <code>winrpa</code> registers <code>reg.finalizer(..., onexit = TRUE)</code> to stop workers early and uses a fail-safe signal + <code>detach()</code> in destructors, while keeping <code>shutdown()</code> recoverable across <code>pkgload::unload()</code>.</p>
+            </div>
+
+            <div class="arch-item">
+              <h3>RichEditD2DPT &amp; Surrogate-Pair Precision</h3>
+              <p>Modern Windows 11 XAML/RichEdit controls drop rapid back-to-back <code>VK_PACKET</code> keystrokes. <code>rpa_type()</code> applies a 50ms focus settle, groups UTF-16 high/low surrogate pairs into atomic 4-event batches, enforces a &gt;=2ms inter-key yield, and drains 20ms at completion.</p>
+            </div>
+
+            <div class="arch-item">
+              <h3>Cross-Platform Stub Portability</h3>
+              <p>All Windows API headers sit behind <code>#ifdef _WIN32</code>. On Linux and macOS, the package compiles cleanly with pure mathematical coordinate helpers intact and clear diagnostic stubs on Windows-only entry points.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================== Interactive API Explorer ======================== -->
+    <section class="section" id="api">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">API Reference</span>
+          <h2>Searchable Function &amp; S3 Method Explorer</h2>
+          <p>Browse every single symbol exported in <code>NAMESPACE</code> — all 44 functions and 4 S3 methods with full signatures, return schemas, and copyable R examples.</p>
+        </div>
+
+        <div class="api-controls">
+          <div class="search-wrap">
+            <input type="search" id="api-search" class="search-input" placeholder="Search functions, e.g. clipboard, screenshot, killswitch, grid..." aria-label="Search API functions" />
+          </div>
+          <div class="api-count" id="api-count">Loading API catalog...</div>
+        </div>
+
+        <div class="cat-pills" id="api-cat-pills" role="group" aria-label="Filter API by category"></div>
+        <div class="api-grid" id="api-grid"></div>
+      </div>
+    </section>
+
+    <!-- ======================== Verification Scorecard ======================== -->
+    <section class="section" id="verification">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">Quality Assurance</span>
+          <h2>Automated &amp; Live Windows 11 Verification</h2>
+          <p>Actual observed checks executed against commit <code>8d35c7b</code> prior to release.</p>
+        </div>
+
+        <div class="verify-grid">
+          <div class="verify-card">
+            <h3>Automated Build, Static &amp; CRAN Checks</h3>
+            <table class="check-table">
+              <tbody>
+                <tr>
+                  <td><code>devtools::test()</code> suite</td>
+                  <td class="status-ok">64 PASS / 0 FAIL / 0 WARN</td>
+                </tr>
+                <tr>
+                  <td><code>R CMD check --no-manual</code></td>
+                  <td class="status-ok">0 Errors / 0 Warnings / 0 Notes</td>
+                </tr>
+                <tr>
+                  <td>GCC 14.3.0 <code>-std=c++17 -Wall -Wextra -Wconversion</code></td>
+                  <td class="status-ok">0 Warnings / 0 Errors</td>
+                </tr>
+                <tr>
+                  <td>CRAN Six-Sigma Gates 1–5 + C++ hygiene audit</td>
+                  <td class="status-ok">All 5 Gates Passed (0 Issues)</td>
+                </tr>
+                <tr>
+                  <td>Headless <code>Rscript.exe</code> exit &amp; namespace reload</td>
+                  <td class="status-ok">Clean Exit (0 Hang)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="verify-card">
+            <h3>Live Windows 11 Interactive Verification (RStudio)</h3>
+            <table class="check-table">
+              <tbody>
+                <tr>
+                  <td><code>rpa_windows()</code>, <code>rpa_element_info()</code> &amp; <code>rpa_inspect_tree()</code></td>
+                  <td class="status-ok">Verified (13 Windows / HWND 0x40A14)</td>
+                </tr>
+                <tr>
+                  <td><code>rpa_with_clipboard()</code> non-destructive restore</td>
+                  <td class="status-ok">Verified</td>
+                </tr>
+                <tr>
+                  <td><code>Ctrl + Alt + F12</code> kill-switch inside <code>rpa_wait_for()</code></td>
+                  <td class="status-ok">Aborted &amp; Unregistered</td>
+                </tr>
+                <tr>
+                  <td><code>rpa_hook_start()</code> / <code>rpa_hook_drain()</code> hardware telemetry</td>
+                  <td class="status-ok">Captured VK 123 / 162 / 164</td>
+                </tr>
+                <tr>
+                  <td><code>winrpa.debug_dir</code> dump &amp; <code>pkgload::unload()</code> reload</td>
+                  <td class="status-ok">Log Written / Zero-Hang Reload</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======================== Footer ======================== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>winrpa</strong> v0.1.0 &middot; MIT License &middot; Copyright &copy; 2026 Yee How Lau
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/lauyeehow1986-hub/Winrpa" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+        <a href="https://github.com/lauyeehow1986-hub/Winrpa/issues" target="_blank" rel="noopener noreferrer">Report Issue</a>
+        <a href="#top">Back to Top</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ======================== Lightbox Modal ======================== -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lb-title">
+    <div class="lightbox-dialog">
+      <div class="lightbox-top">
+        <strong id="lb-title">Preview</strong>
+        <button type="button" class="lightbox-btn" id="lb-close">Close (Esc)</button>
+      </div>
+      <div class="lightbox-img-wrap">
+        <img id="lb-img" src="" alt="" />
+      </div>
+      <div class="lightbox-caption">
+        <span id="lb-caption"></span>
+        <div class="lightbox-nav">
+          <button type="button" class="lightbox-btn" id="lb-prev">Previous</button>
+          <button type="button" class="lightbox-btn" id="lb-next">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="api-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

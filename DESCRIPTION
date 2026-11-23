@@ -3,7 +3,7 @@ Title: Native Desktop UI Automation and Input Control
 Version: 0.1.0
 Authors@R:
     person("Yee How", "Lau", email = "lauyeehow1986@gmail.com", role = c("aut", "cre", "cph"))
-URL: https://github.com/lauyeehow1986-hub/Winrpa
+URL: https://lauyeehow1986-hub.github.io/Winrpa/, https://github.com/lauyeehow1986-hub/Winrpa
 BugReports: https://github.com/lauyeehow1986-hub/Winrpa/issues
 Description: Automates desktop user interfaces from 'R' using native 'C++17'
     bindings via 'cpp11' to operating system accessibility and input layers.
