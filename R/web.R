@@ -406,21 +406,42 @@ rpa_web_wait_network_idle <- function(session,
   }
   rpa_session_check(require_interactive = FALSE)
 
-  rpa_wait_for(
-    function() {
-      st <- cpp_cdp_event_state(session$ptr)
-      if (!isTRUE(st$connected)) {
-        rlang::abort("Web CDP session disconnected while waiting for network idle.")
+  s0 <- cpp_cdp_event_state(session$ptr)
+  last_state <- s0
+  tryCatch(
+    rpa_wait_for(
+      function() {
+        st <- cpp_cdp_event_state(session$ptr)
+        last_state <<- st
+        if (!isTRUE(st$connected)) {
+          rlang::abort("Web CDP session disconnected while waiting for network idle.")
+        }
+        if (!is.null(st$net_idle_seq) && !is.null(s0$net_idle_seq) &&
+            st$net_idle_seq > s0$net_idle_seq) {
+          return(TRUE)
+        }
+        if (st$in_flight <= as.integer(max_inflight) &&
+            st$ms_since_net_activity >= as.numeric(idle_ms)) {
+          return(TRUE)
+        }
+        NULL
+      },
+      timeout = timeout,
+      interval = interval,
+      label = sprintf("network idle (>=%dms)", as.integer(idle_ms))
+    ),
+    error = function(e) {
+      msg <- conditionMessage(e)
+      if (grepl("Timed out", msg, fixed = TRUE)) {
+        rlang::abort(sprintf(
+          "%s (last observed in_flight = %s, quiet_ms = %.0f)",
+          msg,
+          as.character(last_state$in_flight),
+          as.numeric(last_state$ms_since_net_activity)
+        ))
       }
-      if (st$in_flight <= as.integer(max_inflight) &&
-          st$ms_since_net_activity >= as.numeric(idle_ms)) {
-        return(TRUE)
-      }
-      NULL
-    },
-    timeout = timeout,
-    interval = interval,
-    label = sprintf("network idle (>=%dms)", as.integer(idle_ms))
+      rlang::abort(msg)
+    }
   )
   invisible(session)
 }
@@ -585,7 +606,7 @@ rpa_web_click <- function(target,
 
   loc_js <- build_locate_js(el$by, el$selector, el$index)
   coords_js <- sprintf(
-    "(function(){var el=%s;if(!el)return null;el.scrollIntoView({block:'center',inline:'center'});var r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};})()",
+    "(function(){var el=%s;if(!el)return null;el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});var r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};})()",
     loc_js
   )
   coords <- cdp_eval_raw(el$session, coords_js)$value
@@ -596,6 +617,7 @@ rpa_web_click <- function(target,
   px <- as.numeric(coords$x)
   py <- as.numeric(coords$y)
   qbtn <- cdp_json_str(button)
+  btn_mask <- switch(button, left = 1L, right = 2L, middle = 4L)
   cdp_call(
     el$session,
     "Input.dispatchMouseEvent",
@@ -605,12 +627,18 @@ rpa_web_click <- function(target,
     cdp_call(
       el$session,
       "Input.dispatchMouseEvent",
-      sprintf('{"type":"mousePressed","x":%.3f,"y":%.3f,"button":%s,"clickCount":%d}', px, py, qbtn, i)
+      sprintf(
+        '{"type":"mousePressed","x":%.3f,"y":%.3f,"button":%s,"buttons":%d,"clickCount":%d}',
+        px, py, qbtn, btn_mask, i
+      )
     )
     cdp_call(
       el$session,
       "Input.dispatchMouseEvent",
-      sprintf('{"type":"mouseReleased","x":%.3f,"y":%.3f,"button":%s,"clickCount":%d}', px, py, qbtn, i)
+      sprintf(
+        '{"type":"mouseReleased","x":%.3f,"y":%.3f,"button":%s,"buttons":0,"clickCount":%d}',
+        px, py, qbtn, i
+      )
     )
   }
   invisible(target)
@@ -639,7 +667,7 @@ rpa_web_type <- function(target,
     rpa_session_check(require_interactive = FALSE)
     loc_js <- build_locate_js(el$by, el$selector, el$index)
     focus_js <- sprintf(
-      "(function(){var el=%s;if(!el)return false;el.scrollIntoView({block:'center',inline:'center'});el.focus();%sreturn true;})()",
+      "(function(){var el=%s;if(!el)return false;el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});el.focus();%sreturn true;})()",
       loc_js,
       if (isTRUE(clear)) {
         "if('value' in el){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));}"

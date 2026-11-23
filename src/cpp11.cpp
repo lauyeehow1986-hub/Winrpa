@@ -62,6 +62,13 @@ extern "C" SEXP _winrpa_cpp_cdp_base64_selftest(SEXP b64) {
   END_CPP11
 }
 // cdp_client.cpp
+cpp11::writable::list cpp_cdp_network_filter_selftest();
+extern "C" SEXP _winrpa_cpp_cdp_network_filter_selftest() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_network_filter_selftest());
+  END_CPP11
+}
+// cdp_client.cpp
 std::string cpp_cdp_find_browser(std::string preference);
 extern "C" SEXP _winrpa_cpp_cdp_find_browser(SEXP preference) {
   BEGIN_CPP11
@@ -415,6 +422,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_cdp_find_browser",              (DL_FUNC) &_winrpa_cpp_cdp_find_browser,              1},
     {"_winrpa_cpp_cdp_json_selftest",             (DL_FUNC) &_winrpa_cpp_cdp_json_selftest,             0},
     {"_winrpa_cpp_cdp_launch",                    (DL_FUNC) &_winrpa_cpp_cdp_launch,                    6},
+    {"_winrpa_cpp_cdp_network_filter_selftest",   (DL_FUNC) &_winrpa_cpp_cdp_network_filter_selftest,   0},
     {"_winrpa_cpp_cdp_parse_json",                (DL_FUNC) &_winrpa_cpp_cdp_parse_json,                1},
     {"_winrpa_cpp_cdp_send",                      (DL_FUNC) &_winrpa_cpp_cdp_send,                      4},
     {"_winrpa_cpp_cdp_write_base64_file",         (DL_FUNC) &_winrpa_cpp_cdp_write_base64_file,         2},

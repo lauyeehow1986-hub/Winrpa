@@ -537,6 +537,33 @@ inline std::vector<std::uint8_t> base64_decode(const std::string& b64) {
   return out;
 }
 
+inline bool should_track_network_request(
+    const std::string& resource_type,
+    const std::string& url) {
+  auto to_lower = [](std::string s) {
+    for (char& ch : s) {
+      ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+    return s;
+  };
+  const std::string rtype = to_lower(resource_type);
+  if (rtype == "websocket" || rtype == "eventsource" || rtype == "ping" ||
+      rtype == "cspviolationreport" || rtype == "preflight" || rtype == "signedexchange") {
+    return false;
+  }
+  const std::string low_url = to_lower(url);
+  auto starts_with = [&](const char* prefix) {
+    const std::size_t len = std::char_traits<char>::length(prefix);
+    return low_url.size() >= len && low_url.compare(0U, len, prefix) == 0;
+  };
+  if (starts_with("data:") || starts_with("blob:") || starts_with("about:") ||
+      starts_with("chrome:") || starts_with("edge:") ||
+      starts_with("chrome-extension:") || starts_with("ws:") || starts_with("wss:")) {
+    return false;
+  }
+  return true;
+}
+
 }  // namespace cdp
 }  // namespace winrpa
 

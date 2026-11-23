@@ -17,6 +17,18 @@ test_that("Pure C++17 JSON and Base64 codecs round-trip cleanly", {
     winrpa:::cpp_cdp_base64_selftest("YWI="),
     charToRaw("ab")
   )
+
+  nf <- winrpa:::cpp_cdp_network_filter_selftest()
+  expect_false(isTRUE(nf$websocket))
+  expect_false(isTRUE(nf$eventsource))
+  expect_false(isTRUE(nf$ping))
+  expect_false(isTRUE(nf$csp))
+  expect_false(isTRUE(nf$preflight))
+  expect_false(isTRUE(nf$data_url))
+  expect_false(isTRUE(nf$blob_url))
+  expect_true(isTRUE(nf$xhr))
+  expect_true(isTRUE(nf$fetch))
+  expect_true(isTRUE(nf$document))
 })
 
 test_that("rpa_session_check() supports require_interactive = FALSE and rpa_post_* dispatch cleanly", {
@@ -185,6 +197,18 @@ test_that("Headless Edge/Chrome CDP end-to-end works (CSS, XPath, click, type, D
   expect_identical(rpa_web_text(sess, css = "#status"), "clicked:winrpa CDP caf\u00e9")
   delayed <- rpa_web_wait_selector(sess, css = "#delayed", timeout = 5)
   expect_identical(rpa_web_text(delayed), "async-ready")
+
+  # Smooth-scroll page regression: clicking off-screen button below fold must still hit
+  rpa_web_eval(sess, paste0(
+    "document.documentElement.style.scrollBehavior = 'smooth';",
+    "var f = document.createElement('button');",
+    "f.id = 'far-btn'; f.textContent = 'Far Button';",
+    "f.style.marginTop = '3200px';",
+    "f.addEventListener('click', function(){ document.getElementById('status').textContent = 'far-clicked'; });",
+    "document.body.appendChild(f);"
+  ))
+  rpa_web_click(sess, css = "#far-btn")
+  expect_identical(rpa_web_text(sess, css = "#status"), "far-clicked")
 
   up_file <- tempfile("cdp_upload_", fileext = ".txt")
   on.exit(unlink(up_file), add = TRUE)

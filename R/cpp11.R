@@ -32,6 +32,10 @@ cpp_cdp_base64_selftest <- function(b64) {
   .Call(`_winrpa_cpp_cdp_base64_selftest`, b64)
 }
 
+cpp_cdp_network_filter_selftest <- function() {
+  .Call(`_winrpa_cpp_cdp_network_filter_selftest`)
+}
+
 cpp_cdp_find_browser <- function(preference) {
   .Call(`_winrpa_cpp_cdp_find_browser`, preference)
 }

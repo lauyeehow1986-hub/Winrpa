@@ -352,6 +352,8 @@ class CdpSession {
   struct EventSnapshot {
     std::int64_t dom_seq = 0;
     std::int64_t load_seq = 0;
+    std::int64_t net_idle_seq = 0;
+    std::int64_t net_almost_idle_seq = 0;
     int in_flight = 0;
     double ms_since_net = 0.0;
     bool connected = false;
@@ -454,6 +456,7 @@ class CdpSession {
 
     // Enable Page, DOM, Runtime, and Network tracking on attach.
     send_command("Page.enable", "{}", 8000);
+    send_command("Page.setLifecycleEventsEnabled", "{\"enabled\":true}", 8000);
     send_command("DOM.enable", "{}", 8000);
     send_command("Runtime.enable", "{}", 8000);
     send_command("Network.enable", "{}", 8000);
@@ -530,6 +533,8 @@ class CdpSession {
     EventSnapshot s;
     s.dom_seq = dom_seq_;
     s.load_seq = load_seq_;
+    s.net_idle_seq = net_idle_seq_;
+    s.net_almost_idle_seq = net_almost_idle_seq_;
     s.in_flight = static_cast<int>(inflight_reqs_.size());
     const std::int64_t delta = steady_now_ms() - last_net_activity_ms_;
     s.ms_since_net = static_cast<double>(delta >= 0 ? delta : 0LL);
@@ -624,13 +629,38 @@ class CdpSession {
       } else if (method == "Page.loadEventFired") {
         ++load_seq_;
         cv_.notify_all();
+      } else if (method == "Page.lifecycleEvent" && params != nullptr) {
+        const std::string ev_name = params->get_string("name");
+        if (ev_name == "networkIdle") {
+          ++net_idle_seq_;
+          last_net_activity_ms_ = steady_now_ms();
+          cv_.notify_all();
+        } else if (ev_name == "networkAlmostIdle") {
+          ++net_almost_idle_seq_;
+          cv_.notify_all();
+        }
+      } else if (method == "Page.frameNavigated" && params != nullptr) {
+        const cdp::JsonValue* frame = params->find("frame");
+        if (frame != nullptr && frame->is_object() &&
+            frame->get_string("parentId").empty()) {
+          // Clear stale requests from previous top-level document navigations.
+          inflight_reqs_.clear();
+          last_net_activity_ms_ = steady_now_ms();
+          cv_.notify_all();
+        }
       } else if (method == "Network.requestWillBeSent" && params != nullptr) {
         const std::string req_id = params->get_string("requestId");
-        if (!req_id.empty()) {
+        const std::string rtype = params->get_string("type");
+        const cdp::JsonValue* req_obj = params->find("request");
+        const std::string req_url =
+            (req_obj != nullptr && req_obj->is_object()) ? req_obj->get_string("url") : "";
+        if (!req_id.empty() && cdp::should_track_network_request(rtype, req_url)) {
           inflight_reqs_.insert(req_id);
           last_net_activity_ms_ = steady_now_ms();
         }
-      } else if ((method == "Network.loadingFinished" || method == "Network.loadingFailed") &&
+      } else if ((method == "Network.loadingFinished" ||
+                  method == "Network.loadingFailed" ||
+                  method == "Network.requestServedFromCache") &&
                  params != nullptr) {
         const std::string req_id = params->get_string("requestId");
         if (!req_id.empty()) {
@@ -715,6 +745,8 @@ class CdpSession {
   std::unordered_set<std::string> inflight_reqs_;
   std::int64_t dom_seq_ = 0;
   std::int64_t load_seq_ = 0;
+  std::int64_t net_idle_seq_ = 0;
+  std::int64_t net_almost_idle_seq_ = 0;
   std::int64_t last_net_activity_ms_ = 0;
 
   HINTERNET h_session_ = nullptr;
@@ -831,6 +863,24 @@ cpp11::writable::raws cpp_cdp_base64_selftest(std::string b64) {
     out[static_cast<R_xlen_t>(i)] = static_cast<Rbyte>(bytes[i]);
   }
   return out;
+}
+
+[[cpp11::register]]
+cpp11::writable::list cpp_cdp_network_filter_selftest() {
+  using winrpa::cdp::should_track_network_request;
+  using namespace cpp11::literals;
+  return cpp11::writable::list({
+      "websocket"_nm = should_track_network_request("WebSocket", "wss://alive.github.com/ws"),
+      "eventsource"_nm = should_track_network_request("EventSource", "https://example.org/events"),
+      "ping"_nm = should_track_network_request("Ping", "https://api.github.com/_private/browser/stats"),
+      "csp"_nm = should_track_network_request("CSPViolationReport", "https://example.org/csp"),
+      "preflight"_nm = should_track_network_request("Preflight", "https://api.example.org"),
+      "data_url"_nm = should_track_network_request("Image", "data:image/png;base64,AAAA"),
+      "blob_url"_nm = should_track_network_request("Other", "blob:https://example.org/123"),
+      "xhr"_nm = should_track_network_request("XHR", "https://github.com/foo/bar"),
+      "fetch"_nm = should_track_network_request("Fetch", "https://github.com/foo/bar"),
+      "document"_nm = should_track_network_request("Document", "https://github.com/foo/bar")
+  });
 }
 
 [[cpp11::register]]
@@ -1061,6 +1111,8 @@ cpp11::writable::list cpp_cdp_event_state(SEXP sess_xptr) {
   return cpp11::writable::list({
       "dom_seq"_nm = static_cast<double>(st.dom_seq),
       "load_seq"_nm = static_cast<double>(st.load_seq),
+      "net_idle_seq"_nm = static_cast<double>(st.net_idle_seq),
+      "net_almost_idle_seq"_nm = static_cast<double>(st.net_almost_idle_seq),
       "in_flight"_nm = st.in_flight,
       "ms_since_net_activity"_nm = st.ms_since_net,
       "connected"_nm = st.connected
