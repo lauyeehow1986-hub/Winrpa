@@ -204,6 +204,9 @@ struct UiaElementHandle {
 void release_uia_element(UiaElementHandle* h);
 using UiaElementXPtr = cpp11::external_pointer<UiaElementHandle, release_uia_element>;
 
+std::string control_type_to_string(CONTROLTYPEID id);
+std::string hwnd_to_hex(UIA_HWND hwnd);
+
 }  // namespace winrpa
 
 #else

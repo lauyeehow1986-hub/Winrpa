@@ -1,4 +1,4 @@
-/* Complete API catalog covering all 67 exported functions + 8 S3 methods in winrpa */
+/* Complete API catalog covering all 77 exported functions + 10 S3 methods in winrpa */
 window.WINRPA_API = [
   /* ===================== Windows & Selectors (17) ===================== */
   {
@@ -423,6 +423,24 @@ window.WINRPA_API = [
     tags: ["MTA COM", "Deterministic"],
     example: 'submit_btn <- rpa_find(win, name = "Submit", control_type = "Button")\nrpa_wait_until_enabled(submit_btn, timeout = 10) |> rpa_click()'
   },
+  {
+    name: "rpa_wait_window",
+    category: "Waits & Debug",
+    signature: "rpa_wait_window(title = NULL, class_name = NULL, pid = NULL, regex = FALSE, timeout = 10, interval = 0.1)",
+    summary: "Polls rpa_window() safely while swallowing expected not-found errors until the target top-level window appears or timeout expires.",
+    returns: "A \"winrpa_element\" handle for the matched window.",
+    tags: ["Wait Helper", "Window Lookup", "Abort-Aware"],
+    example: 'win <- rpa_wait_window(title = "Untitled - Notepad", timeout = 8) |> rpa_window_focus()'
+  },
+  {
+    name: "rpa_wait_find",
+    category: "Waits & Debug",
+    signature: "rpa_wait_find(parent = NULL, selector = NULL, name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE, exact = FALSE, max_depth = NULL, timeout = 10, interval = 0.1)",
+    summary: "Polls rpa_find() deterministically until a matching child control appears, capturing debug_window diagnostics if timed out.",
+    returns: "A \"winrpa_element\" handle for the matched control.",
+    tags: ["Wait Helper", "Server-Side UIA", "Abort-Aware"],
+    example: 'ed <- rpa_wait_find(win, automation_id = "RichEditD2DPT", control_type = "Document", timeout = 8)'
+  },
 
   /* ===================== Safety, Kill-Switch & Hooks (9) ===================== */
   {
@@ -687,5 +705,97 @@ window.WINRPA_API = [
     returns: "Invisibly returns x.",
     tags: ["S3 Method", "Cross-Platform"],
     example: 'print(btn)'
+  },
+
+  /* ===================== Script Recorder (Desktop UIA & Web CDP) (10) ===================== */
+  {
+    name: "rpa_record_start",
+    category: "Script Recorder",
+    signature: "rpa_record_start(ignore_self = TRUE, redact_passwords = TRUE, include_wheel = TRUE, stop_hotkey = c(\"ctrl\", \"shift\", \"f9\"), ignore_pids = integer())",
+    summary: "Starts the two-stage desktop recorder: lock-free WH_MOUSE_LL + WH_KEYBOARD_LL hooks (ignoring WM_MOUSEMOVE) paired with an async MTA UIA ElementFromPoint resolver thread and global stop hotkey.",
+    returns: "Invisibly returns TRUE.",
+    tags: ["WH_MOUSE_LL", "MTA Resolver", "Password Safe"],
+    example: 'rpa_record_start(ignore_self = TRUE, redact_passwords = TRUE)\n# Perform desktop clicks/typing, then press Ctrl+Shift+F9 or call rpa_record_stop()\nrec <- rpa_record_stop()'
+  },
+  {
+    name: "rpa_record_status",
+    category: "Script Recorder",
+    signature: "rpa_record_status()",
+    summary: "Reports live desktop recorder state including active status, stop-hotkey trigger state, elapsed seconds, resolved event count, and ring-buffer drop count.",
+    returns: "Named list: active, stopped_by_hotkey, elapsed_sec, captured_events, dropped_events.",
+    tags: ["Diagnostics", "Non-Blocking"],
+    example: 'rpa_record_status()'
+  },
+  {
+    name: "rpa_record_stop",
+    category: "Script Recorder",
+    signature: "rpa_record_stop(file = NULL, coalesce_typing = TRUE, wait_threshold_ms = 800, redact_passwords = NULL, include_wheel = NULL, ignore_self = NULL)",
+    summary: "Unhooks WH_MOUSE_LL / WH_KEYBOARD_LL, flushes in-flight MTA UIA lookups, normalizes clicks/double-clicks/wheels/typing/passwords, emits a replayable R script, and optionally writes it to file.",
+    returns: "An object of class \"winrpa_recording\" with $script character vector and $events data.frame.",
+    tags: ["Code Generation", "Auto-Waits", "Password Redaction"],
+    example: 'rpa_record_start()\n# ... user actions ...\nrec <- rpa_record_stop(file = "recorded_flow.R")\nprint(rec)'
+  },
+  {
+    name: "rpa_record_emit",
+    category: "Script Recorder",
+    signature: "rpa_record_emit(recording, coalesce_typing = TRUE, wait_threshold_ms = 800, redact_passwords = TRUE, include_wheel = TRUE, ignore_self = TRUE, ignore_pids = integer(), double_click_ms = NULL, drag_px = NULL)",
+    summary: "Pure R normalization and script-generation pass over captured desktop events: filters self/parent PIDs, folds in-burst Backspace typos, ranks selectors (automation_id > name+exact > class_name > relative click), and emits rpa_wait_*() calls.",
+    returns: "An object of class \"winrpa_recording\".",
+    tags: ["Pure Codegen", "Selector Ranking", "Cross-Platform"],
+    example: 'rec2 <- rpa_record_emit(rec, wait_threshold_ms = 500, coalesce_typing = TRUE)'
+  },
+  {
+    name: "rpa_record_save",
+    category: "Script Recorder",
+    signature: "rpa_record_save(recording, file)",
+    summary: "Writes the emitted R script lines from a desktop or web winrpa_recording object to disk cleanly.",
+    returns: "Invisibly returns the normalized output file path.",
+    tags: ["File Output", "Cross-Platform"],
+    example: 'rpa_record_save(rec, tempfile(fileext = ".R"))'
+  },
+  {
+    name: "rpa_web_record_start",
+    category: "Script Recorder",
+    signature: "rpa_web_record_start(session, redact_passwords = TRUE)",
+    summary: "Attaches a CDP Runtime.addBinding + Page.addScriptToEvaluateOnNewDocument DOM event recorder capturing clicks, double-clicks, form typing, <select> changes, file inputs, and full-page navigations with ranked CSS selectors.",
+    returns: "Invisibly returns TRUE.",
+    tags: ["CDP Binding", "CSS Ranking", "Password Redaction"],
+    example: 'sess <- rpa_web_launch(headless = FALSE)\nrpa_web_record_start(sess, redact_passwords = TRUE)'
+  },
+  {
+    name: "rpa_web_record_stop",
+    category: "Script Recorder",
+    signature: "rpa_web_record_stop(session, file = NULL, coalesce_typing = TRUE, wait_threshold_ms = 800, redact_passwords = NULL)",
+    summary: "Detaches the DOM recorder listener, drains queued CDP events from C++, normalizes inputs/clicks, and emits a runnable rpa_web_*() R script.",
+    returns: "An object of class \"winrpa_recording\" (mode = \"web\").",
+    tags: ["CDP Recorder", "rpa_web_* Codegen"],
+    example: 'rec <- rpa_web_record_stop(sess, file = "web_flow.R")\nprint(rec)'
+  },
+  {
+    name: "rpa_web_record_emit",
+    category: "Script Recorder",
+    signature: "rpa_web_record_emit(recording, coalesce_typing = TRUE, wait_threshold_ms = 800, redact_passwords = TRUE)",
+    summary: "Regenerates a clean rpa_web_*() R script from a captured web recording data.frame or winrpa_recording object.",
+    returns: "An object of class \"winrpa_recording\".",
+    tags: ["Pure Codegen", "Cross-Platform"],
+    example: 'rec2 <- rpa_web_record_emit(rec, redact_passwords = TRUE)'
+  },
+  {
+    name: "format.winrpa_recording",
+    category: "Script Recorder",
+    signature: "format.winrpa_recording(x, ...)",
+    summary: "Formats a compact summary string for a desktop or web winrpa_recording object.",
+    returns: "Character scalar summary.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'format(rec)'
+  },
+  {
+    name: "print.winrpa_recording",
+    category: "Script Recorder",
+    signature: "print.winrpa_recording(x, ...)",
+    summary: "Prints a winrpa_recording summary header followed by the complete emitted R script.",
+    returns: "Invisibly returns x.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'print(rec)'
   }
 ];

@@ -321,6 +321,31 @@
         'rpa_web_click(sess, xpath = "//button[@type=\'submit\']")\n\n' +
         'heading <- rpa_web_text(sess, css = "h1")\n' +
         'rpa_web_screenshot(sess, path = "page.png", full_page = TRUE)'
+    },
+    {
+      id: "recorder",
+      label: "8. Script Recorder",
+      title: "Record Desktop UIA & Browser DOM Flows Into Clean R Code",
+      summary: "Capture human desktop interactions via lock-free WH_MOUSE_LL + WH_KEYBOARD_LL -> MTA ElementFromPoint resolution, or record browser flows via CDP Runtime.addBinding with automatic password redaction and selector ranking.",
+      bullets: [
+        "Desktop clicks resolve on WM_LBUTTONDOWN before popups close; RStudio/parent PIDs filter out cleanly.",
+        "Typo-aware key coalescing folds in-burst Backspace and emits Sys.getenv('WINRPA_SECRET') for password fields.",
+        "rpa_web_record_start() ranks CSS selectors (#id > data-testid > name > aria-label > path) across page navigations."
+      ],
+      filename: "workflow_recorder.R",
+      code:
+        'library(winrpa)\n\n' +
+        '# A. Desktop UIA + SendInput Recorder\n' +
+        'rpa_record_start(ignore_self = TRUE, redact_passwords = TRUE)\n' +
+        '# Click & type in any Windows app; press Ctrl+Shift+F9 or call stop:\n' +
+        'desktop_rec <- rpa_record_stop(file = "notepad_recorded.R")\n' +
+        'print(desktop_rec)\n\n' +
+        '# B. Web Browser CDP DOM Recorder\n' +
+        'sess <- rpa_web_launch(headless = FALSE, url = "https://example.org")\n' +
+        'rpa_web_record_start(sess, redact_passwords = TRUE)\n' +
+        '# Interact with the page, then stop and emit clean rpa_web_*() R code:\n' +
+        'web_rec <- rpa_web_record_stop(sess, file = "web_recorded.R")\n' +
+        'rpa_web_close(sess)'
     }
   ];
 
@@ -369,7 +394,7 @@
   }
 
   /* ========================================================================
-     Searchable 75-Entry API Explorer
+     Searchable 87-Entry API Explorer
      ======================================================================== */
   var apiList = Array.isArray(window.WINRPA_API) ? window.WINRPA_API : [];
   var apiSearch = document.getElementById("api-search");

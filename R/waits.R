@@ -196,3 +196,115 @@ rpa_wait_until_enabled <- function(target,
   )
   invisible(target)
 }
+
+#' Wait for a Top-Level Window or Child Control to Appear
+#'
+#' Convenience wrappers around [rpa_wait_for()] that poll [rpa_window()] or
+#' [rpa_find()] while swallowing expected not-found errors until `timeout`
+#' expires. Useful in replayed and recorded scripts where targets may open
+#' asynchronously.
+#'
+#' @param title,class_name,pid,regex Window criteria passed to [rpa_window()].
+#' @param parent,selector,name,automation_id,control_type,exact,max_depth
+#'   Element search criteria passed to [rpa_find()].
+#' @param timeout Numeric maximum wait duration in seconds.
+#' @param interval Polling interval in seconds.
+#'
+#' @return A `"winrpa_element"` object once located.
+#' @export
+#' @examplesIf interactive() && .Platform$OS.type == "windows"
+#' wins <- rpa_windows()
+#' if (nrow(wins) > 0L) {
+#'   rpa_wait_window(pid = wins$pid[1L], timeout = 2)
+#' }
+rpa_wait_window <- function(title = NULL,
+                            class_name = NULL,
+                            pid = NULL,
+                            regex = FALSE,
+                            timeout = 10,
+                            interval = 0.1) {
+  title <- assert_optional_scalar_string(title, "title")
+  class_name <- assert_optional_scalar_string(class_name, "class_name")
+  if (!is.null(pid) &&
+      (!is.numeric(pid) || length(pid) != 1L || is.na(pid) || pid <= 0)) {
+    rlang::abort("'pid' must be NULL or a positive integer.")
+  }
+  if (!is.logical(regex) || length(regex) != 1L || is.na(regex)) {
+    rlang::abort("'regex' must be a single non-NA logical value.")
+  }
+  rpa_session_check()
+
+  label <- if (!is.null(title) && nzchar(title)) {
+    sprintf('window "%s"', title)
+  } else if (!is.null(class_name) && nzchar(class_name)) {
+    sprintf('window class "%s"', class_name)
+  } else {
+    "matching window"
+  }
+
+  rpa_wait_for(
+    function() {
+      tryCatch(
+        rpa_window(
+          title = title,
+          class_name = class_name,
+          pid = pid,
+          regex = regex
+        ),
+        error = function(e) NULL
+      )
+    },
+    timeout = timeout,
+    interval = interval,
+    label = label
+  )
+}
+
+#' @rdname rpa_wait_window
+#' @export
+rpa_wait_find <- function(parent = NULL,
+                          selector = NULL,
+                          name = NULL,
+                          automation_id = NULL,
+                          control_type = NULL,
+                          class_name = NULL,
+                          regex = FALSE,
+                          exact = FALSE,
+                          max_depth = NULL,
+                          timeout = 10,
+                          interval = 0.1) {
+  if (inherits(parent, "winrpa_selector") && is.null(selector)) {
+    selector <- parent
+    parent <- NULL
+  }
+  if (!is.null(parent)) {
+    assert_element(parent, "parent")
+  }
+  if (!is.null(max_depth)) {
+    if (!is.numeric(max_depth) || length(max_depth) != 1L || is.na(max_depth) ||
+        !is.finite(max_depth) || max_depth < 0) {
+      rlang::abort("'max_depth' must be NULL or a non-negative integer.")
+    }
+  }
+  sel <- resolve_find_criteria(
+    selector, name, automation_id, control_type, class_name, regex, exact
+  )
+  rpa_session_check()
+
+  rpa_wait_for(
+    function() {
+      tryCatch(
+        rpa_find(
+          parent = parent,
+          selector = sel,
+          max_depth = max_depth
+        ),
+        error = function(e) NULL
+      )
+    },
+    timeout = timeout,
+    interval = interval,
+    label = format(sel),
+    debug_window = parent
+  )
+}

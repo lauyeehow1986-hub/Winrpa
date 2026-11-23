@@ -20,16 +20,6 @@
 
 namespace winrpa {
 
-namespace {
-
-struct VariantGuard {
-  VARIANT v;
-  VariantGuard() { VariantInit(&v); }
-  VariantGuard(const VariantGuard&) = delete;
-  VariantGuard& operator=(const VariantGuard&) = delete;
-  ~VariantGuard() { VariantClear(&v); }
-};
-
 struct ControlTypeEntry {
   CONTROLTYPEID id;
   const char* name;
@@ -77,13 +67,6 @@ constexpr ControlTypeEntry kControlTypes[] = {
     {UIA_SeparatorControlTypeId, "Separator"}
 };
 
-std::string to_lower_ascii(std::string s) {
-  for (char& ch : s) {
-    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-  }
-  return s;
-}
-
 std::string control_type_to_string(CONTROLTYPEID id) {
   for (const auto& e : kControlTypes) {
     if (e.id == id) {
@@ -91,17 +74,6 @@ std::string control_type_to_string(CONTROLTYPEID id) {
     }
   }
   return "Unknown";
-}
-
-bool string_to_control_type(const std::string& name, CONTROLTYPEID& out_id) {
-  const std::string target = to_lower_ascii(name);
-  for (const auto& e : kControlTypes) {
-    if (to_lower_ascii(e.name) == target) {
-      out_id = e.id;
-      return true;
-    }
-  }
-  return false;
 }
 
 std::string hwnd_to_hex(UIA_HWND hwnd) {
@@ -118,6 +90,34 @@ std::string hwnd_to_hex(UIA_HWND hwnd) {
   } while (cur != 0U);
   std::reverse(digits.begin(), digits.end());
   return "0x" + digits;
+}
+
+namespace {
+
+struct VariantGuard {
+  VARIANT v;
+  VariantGuard() { VariantInit(&v); }
+  VariantGuard(const VariantGuard&) = delete;
+  VariantGuard& operator=(const VariantGuard&) = delete;
+  ~VariantGuard() { VariantClear(&v); }
+};
+
+std::string to_lower_ascii(std::string s) {
+  for (char& ch : s) {
+    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  }
+  return s;
+}
+
+bool string_to_control_type(const std::string& name, CONTROLTYPEID& out_id) {
+  const std::string target = to_lower_ascii(name);
+  for (const auto& e : kControlTypes) {
+    if (to_lower_ascii(e.name) == target) {
+      out_id = e.id;
+      return true;
+    }
+  }
+  return false;
 }
 
 bool contains_icase_utf8(const std::string& haystack, const std::string& needle) {

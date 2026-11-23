@@ -5,6 +5,7 @@
 #include "cdp_client.h"
 #include "mta_worker.h"
 #include "capture_hooks.h"
+#include "recorder.h"
 #include "winrpa_core.h"
 
 #include <stdexcept>
@@ -130,6 +131,7 @@ void release_uia_element(UiaElementHandle* h) {
 
 [[cpp11::register]]
 void cpp_shutdown_runtime() {
+  winrpa::stop_desktop_recorder();
   winrpa::shutdown_all_cdp_sessions();
   winrpa::stop_runtime_hooks();
 #ifdef _WIN32

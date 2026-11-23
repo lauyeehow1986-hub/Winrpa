@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 #include <cpp11/protect.hpp>
 
@@ -174,6 +175,170 @@ class HookEventRingBuffer {
   std::atomic<std::uint64_t> write_seq_{0ULL};
   std::atomic<std::uint64_t> read_seq_{0ULL};
 };
+
+enum class RecordEventKind : std::uint8_t {
+  kNone = 0,
+  kMouseDown = 1,
+  kMouseUp = 2,
+  kMouseWheel = 3,
+  kKeyDown = 4,
+  kKeyUp = 5
+};
+
+struct RawRecordEvent {
+  std::uint8_t kind = 0U;
+  std::uint8_t button = 0U;
+  std::uint8_t modifiers = 0U;
+  std::uint8_t flags = 0U;
+  std::int32_t x = 0;
+  std::int32_t y = 0;
+  std::int32_t wheel_delta = 0;
+  std::uint32_t vk_code = 0U;
+  std::uint32_t scan_code = 0U;
+  std::int64_t timestamp_ms = 0;
+  std::uint64_t fg_hwnd = 0ULL;
+  std::uint64_t hkl = 0ULL;
+};
+
+// Lock-free SPSC seqlock ring buffer for WH_MOUSE_LL + WH_KEYBOARD_LL recorder hooks.
+class RecordEventRingBuffer {
+ public:
+  static constexpr std::size_t kCapacity = 512;
+
+  void push(const RawRecordEvent& ev) noexcept {
+    const std::uint64_t w = write_seq_.load(std::memory_order_relaxed);
+    AtomicSlot& slot = slots_[w % kCapacity];
+    slot.seq.store(w * 2ULL + 1ULL, std::memory_order_release);
+    std::atomic_thread_fence(std::memory_order_release);
+    slot.ev.kind = ev.kind;
+    slot.ev.button = ev.button;
+    slot.ev.modifiers = ev.modifiers;
+    slot.ev.flags = ev.flags;
+    slot.ev.x = ev.x;
+    slot.ev.y = ev.y;
+    slot.ev.wheel_delta = ev.wheel_delta;
+    slot.ev.vk_code = ev.vk_code;
+    slot.ev.scan_code = ev.scan_code;
+    slot.ev.timestamp_ms = ev.timestamp_ms;
+    slot.ev.fg_hwnd = ev.fg_hwnd;
+    slot.ev.hkl = ev.hkl;
+    slot.seq.store((w + 1ULL) * 2ULL, std::memory_order_release);
+    write_seq_.store(w + 1ULL, std::memory_order_release);
+  }
+
+  std::uint64_t drain(std::vector<RawRecordEvent>& out) {
+    out.clear();
+    const std::uint64_t w = write_seq_.load(std::memory_order_acquire);
+    std::uint64_t r = read_seq_.load(std::memory_order_relaxed);
+    std::uint64_t dropped = 0ULL;
+    const std::uint64_t cap = static_cast<std::uint64_t>(kCapacity);
+    if (w > r + cap) {
+      dropped = w - (r + cap);
+      r = w - cap;
+    }
+    out.reserve(static_cast<std::size_t>(w - r));
+    for (std::uint64_t s = r; s < w; ++s) {
+      const AtomicSlot& slot = slots_[s % kCapacity];
+      const std::uint64_t s1 = slot.seq.load(std::memory_order_acquire);
+      RawRecordEvent copy = slot.ev;
+      std::atomic_thread_fence(std::memory_order_acquire);
+      const std::uint64_t s2 = slot.seq.load(std::memory_order_acquire);
+      if ((s1 & 1ULL) == 0ULL && s1 == s2 && s1 == (s + 1ULL) * 2ULL) {
+        out.push_back(copy);
+      } else {
+        ++dropped;
+      }
+    }
+    if (dropped > 0ULL) {
+      dropped_total_.fetch_add(dropped, std::memory_order_relaxed);
+    }
+    read_seq_.store(w, std::memory_order_release);
+    return dropped;
+  }
+
+  void clear() {
+    const std::uint64_t w = write_seq_.load(std::memory_order_acquire);
+    read_seq_.store(w, std::memory_order_release);
+    dropped_total_.store(0ULL, std::memory_order_release);
+  }
+
+  std::uint64_t dropped_total() const noexcept {
+    const std::uint64_t base = dropped_total_.load(std::memory_order_acquire);
+    const std::uint64_t w = write_seq_.load(std::memory_order_acquire);
+    const std::uint64_t r = read_seq_.load(std::memory_order_acquire);
+    const std::uint64_t cap = static_cast<std::uint64_t>(kCapacity);
+    const std::uint64_t unconsumed = (w > r + cap) ? (w - (r + cap)) : 0ULL;
+    return base + unconsumed;
+  }
+
+  std::uint64_t total_pushed() const noexcept {
+    return write_seq_.load(std::memory_order_acquire);
+  }
+
+ private:
+  struct AtomicSlot {
+    std::atomic<std::uint64_t> seq{0ULL};
+    RawRecordEvent ev{};
+  };
+
+  AtomicSlot slots_[kCapacity]{};
+  std::atomic<std::uint64_t> write_seq_{0ULL};
+  std::atomic<std::uint64_t> read_seq_{0ULL};
+  std::atomic<std::uint64_t> dropped_total_{0ULL};
+};
+
+inline bool is_modifier_vk_code(std::uint32_t vk) noexcept {
+  switch (vk) {
+    case 0x10U:  // VK_SHIFT
+    case 0x11U:  // VK_CONTROL
+    case 0x12U:  // VK_MENU
+    case 0x5BU:  // VK_LWIN
+    case 0x5CU:  // VK_RWIN
+    case 0xA0U:  // VK_LSHIFT
+    case 0xA1U:  // VK_RSHIFT
+    case 0xA2U:  // VK_LCONTROL
+    case 0xA3U:  // VK_RCONTROL
+    case 0xA4U:  // VK_LMENU
+    case 0xA5U:  // VK_RMENU
+      return true;
+    default:
+      return false;
+  }
+}
+
+inline std::string vk_code_to_key_name(std::uint32_t vk) {
+  switch (vk) {
+    case 0x08U: return "backspace";
+    case 0x09U: return "tab";
+    case 0x0DU: return "enter";
+    case 0x14U: return "capslock";
+    case 0x1BU: return "esc";
+    case 0x20U: return "space";
+    case 0x21U: return "pageup";
+    case 0x22U: return "pagedown";
+    case 0x23U: return "end";
+    case 0x24U: return "home";
+    case 0x25U: return "left";
+    case 0x26U: return "up";
+    case 0x27U: return "right";
+    case 0x28U: return "down";
+    case 0x2CU: return "printscreen";
+    case 0x2DU: return "insert";
+    case 0x2EU: return "delete";
+    default:
+      break;
+  }
+  if (vk >= 0x70U && vk <= 0x87U) {
+    return "f" + std::to_string((vk - 0x70U) + 1U);
+  }
+  if (vk >= 0x30U && vk <= 0x39U) {
+    return std::string(1U, static_cast<char>(vk));
+  }
+  if (vk >= 0x41U && vk <= 0x5AU) {
+    return std::string(1U, static_cast<char>(vk + 32U));
+  }
+  return "";
+}
 
 // Pure C++17 24-bit uncompressed BMP encoder (top-down BGRA input -> bottom-up 24-bit BMP).
 inline std::vector<std::uint8_t> encode_bgr_bmp(

@@ -12,6 +12,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -546,7 +547,32 @@ class CdpSession {
     teardown(false);
   }
 
+  void set_web_recording(bool active, bool clear_existing) {
+    std::lock_guard<std::mutex> lock(mu_);
+    web_recording_ = active;
+    if (clear_existing) {
+      rec_events_.clear();
+      rec_dropped_ = 0ULL;
+    }
+  }
+
+  std::pair<std::vector<std::string>, std::uint64_t> drain_web_recording() {
+    std::lock_guard<std::mutex> lock(mu_);
+    std::vector<std::string> out(rec_events_.begin(), rec_events_.end());
+    rec_events_.clear();
+    const std::uint64_t dropped = rec_dropped_;
+    rec_dropped_ = 0ULL;
+    return {std::move(out), dropped};
+  }
+
  private:
+  void push_rec_event_locked(const std::string& payload) {
+    if (rec_events_.size() >= 10000U) {
+      ++rec_dropped_;
+      return;
+    }
+    rec_events_.push_back(payload);
+  }
   void reader_loop() {
     std::string accumulated;
     std::vector<char> chunk(65536U);
@@ -646,7 +672,25 @@ class CdpSession {
           // Clear stale requests from previous top-level document navigations.
           inflight_reqs_.clear();
           last_net_activity_ms_ = steady_now_ms();
+          if (web_recording_) {
+            const std::string nav_url = frame->get_string("url");
+            if (!nav_url.empty() && nav_url != "about:blank") {
+              const std::string nav_payload = cdp::dump_json(cdp::JsonValue::make_object({
+                  {"kind", cdp::JsonValue::make_string("navigate")},
+                  {"url", cdp::JsonValue::make_string(nav_url)},
+                  {"ts", cdp::JsonValue::make_int(steady_now_ms())}
+              }));
+              push_rec_event_locked(nav_payload);
+            }
+          }
           cv_.notify_all();
+        }
+      } else if (method == "Runtime.bindingCalled" && params != nullptr) {
+        if (web_recording_ && params->get_string("name") == "__winrpa_record") {
+          const std::string payload = params->get_string("payload");
+          if (!payload.empty()) {
+            push_rec_event_locked(payload);
+          }
         }
       } else if (method == "Network.requestWillBeSent" && params != nullptr) {
         const std::string req_id = params->get_string("requestId");
@@ -757,6 +801,9 @@ class CdpSession {
   std::thread reader_thread_;
   bool connected_ = false;
   bool stopping_ = false;
+  bool web_recording_ = false;
+  std::deque<std::string> rec_events_;
+  std::uint64_t rec_dropped_ = 0ULL;
 };
 
 using CdpSessionXPtr = cpp11::external_pointer<CdpSession>;
@@ -1201,4 +1248,39 @@ SEXP cpp_cdp_parse_json(std::string raw_json) {
     cpp11::stop("Invalid JSON response: %s", e.what());
   }
   return R_NilValue;
+}
+
+[[cpp11::register]]
+void cpp_cdp_record_set_active(SEXP sess_xptr, bool active, bool clear) {
+#ifdef _WIN32
+  winrpa::CdpSession* s = winrpa::unwrap_cdp_session(sess_xptr);
+  s->set_web_recording(active, clear);
+#else
+  (void)sess_xptr;
+  (void)active;
+  (void)clear;
+  winrpa::require_windows_or_stop("cpp_cdp_record_set_active()");
+#endif
+}
+
+[[cpp11::register]]
+cpp11::writable::list cpp_cdp_record_drain(SEXP sess_xptr) {
+#ifdef _WIN32
+  winrpa::CdpSession* s = winrpa::unwrap_cdp_session(sess_xptr);
+  const auto res = s->drain_web_recording();
+  const auto& vec = res.first;
+  cpp11::writable::strings payloads(static_cast<R_xlen_t>(vec.size()));
+  for (std::size_t i = 0U; i < vec.size(); ++i) {
+    payloads[static_cast<R_xlen_t>(i)] = vec[i];
+  }
+  using namespace cpp11::literals;
+  return cpp11::writable::list({
+      "payloads"_nm = payloads,
+      "dropped"_nm = static_cast<int>(res.second)
+  });
+#else
+  (void)sess_xptr;
+  winrpa::require_windows_or_stop("cpp_cdp_record_drain()");
+  return cpp11::writable::list();
+#endif
 }

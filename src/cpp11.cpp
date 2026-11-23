@@ -125,6 +125,21 @@ extern "C" SEXP _winrpa_cpp_cdp_parse_json(SEXP raw_json) {
     return cpp11::as_sexp(cpp_cdp_parse_json(cpp11::as_cpp<cpp11::decay_t<std::string>>(raw_json)));
   END_CPP11
 }
+// cdp_client.cpp
+void cpp_cdp_record_set_active(SEXP sess_xptr, bool active, bool clear);
+extern "C" SEXP _winrpa_cpp_cdp_record_set_active(SEXP sess_xptr, SEXP active, SEXP clear) {
+  BEGIN_CPP11
+    cpp_cdp_record_set_active(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr), cpp11::as_cpp<cpp11::decay_t<bool>>(active), cpp11::as_cpp<cpp11::decay_t<bool>>(clear));
+    return R_NilValue;
+  END_CPP11
+}
+// cdp_client.cpp
+cpp11::writable::list cpp_cdp_record_drain(SEXP sess_xptr);
+extern "C" SEXP _winrpa_cpp_cdp_record_drain(SEXP sess_xptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_record_drain(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr)));
+  END_CPP11
+}
 // input_dpi.cpp
 cpp11::writable::list cpp_get_display_metrics();
 extern "C" SEXP _winrpa_cpp_get_display_metrics() {
@@ -290,6 +305,48 @@ extern "C" SEXP _winrpa_cpp_encode_bmp_test(SEXP width, SEXP height) {
     return cpp11::as_sexp(cpp_encode_bmp_test(cpp11::as_cpp<cpp11::decay_t<int>>(width), cpp11::as_cpp<cpp11::decay_t<int>>(height)));
   END_CPP11
 }
+// recorder.cpp
+bool cpp_record_start(bool include_wheel, bool redact_passwords, bool install_stop_hotkey, int stop_mods, int stop_vk);
+extern "C" SEXP _winrpa_cpp_record_start(SEXP include_wheel, SEXP redact_passwords, SEXP install_stop_hotkey, SEXP stop_mods, SEXP stop_vk) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_start(cpp11::as_cpp<cpp11::decay_t<bool>>(include_wheel), cpp11::as_cpp<cpp11::decay_t<bool>>(redact_passwords), cpp11::as_cpp<cpp11::decay_t<bool>>(install_stop_hotkey), cpp11::as_cpp<cpp11::decay_t<int>>(stop_mods), cpp11::as_cpp<cpp11::decay_t<int>>(stop_vk)));
+  END_CPP11
+}
+// recorder.cpp
+cpp11::writable::list cpp_record_stop();
+extern "C" SEXP _winrpa_cpp_record_stop() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_stop());
+  END_CPP11
+}
+// recorder.cpp
+cpp11::writable::list cpp_record_status();
+extern "C" SEXP _winrpa_cpp_record_status() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_status());
+  END_CPP11
+}
+// recorder.cpp
+cpp11::writable::list cpp_record_system_metrics();
+extern "C" SEXP _winrpa_cpp_record_system_metrics() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_system_metrics());
+  END_CPP11
+}
+// recorder.cpp
+cpp11::writable::list cpp_record_ring_selftest(int n_push);
+extern "C" SEXP _winrpa_cpp_record_ring_selftest(SEXP n_push) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_ring_selftest(cpp11::as_cpp<cpp11::decay_t<int>>(n_push)));
+  END_CPP11
+}
+// recorder.cpp
+cpp11::writable::list cpp_record_vk_selftest();
+extern "C" SEXP _winrpa_cpp_record_vk_selftest() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_record_vk_selftest());
+  END_CPP11
+}
 // uia_engine.cpp
 cpp11::writable::data_frame cpp_uia_list_windows();
 extern "C" SEXP _winrpa_cpp_uia_list_windows() {
@@ -424,6 +481,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_cdp_launch",                    (DL_FUNC) &_winrpa_cpp_cdp_launch,                    6},
     {"_winrpa_cpp_cdp_network_filter_selftest",   (DL_FUNC) &_winrpa_cpp_cdp_network_filter_selftest,   0},
     {"_winrpa_cpp_cdp_parse_json",                (DL_FUNC) &_winrpa_cpp_cdp_parse_json,                1},
+    {"_winrpa_cpp_cdp_record_drain",              (DL_FUNC) &_winrpa_cpp_cdp_record_drain,              1},
+    {"_winrpa_cpp_cdp_record_set_active",         (DL_FUNC) &_winrpa_cpp_cdp_record_set_active,         3},
     {"_winrpa_cpp_cdp_send",                      (DL_FUNC) &_winrpa_cpp_cdp_send,                      4},
     {"_winrpa_cpp_cdp_write_base64_file",         (DL_FUNC) &_winrpa_cpp_cdp_write_base64_file,         2},
     {"_winrpa_cpp_clipboard_get_text",            (DL_FUNC) &_winrpa_cpp_clipboard_get_text,            0},
@@ -445,6 +504,12 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_normalize_virtual_coords",      (DL_FUNC) &_winrpa_cpp_normalize_virtual_coords,      6},
     {"_winrpa_cpp_post_click",                    (DL_FUNC) &_winrpa_cpp_post_click,                    5},
     {"_winrpa_cpp_post_text",                     (DL_FUNC) &_winrpa_cpp_post_text,                     2},
+    {"_winrpa_cpp_record_ring_selftest",          (DL_FUNC) &_winrpa_cpp_record_ring_selftest,          1},
+    {"_winrpa_cpp_record_start",                  (DL_FUNC) &_winrpa_cpp_record_start,                  5},
+    {"_winrpa_cpp_record_status",                 (DL_FUNC) &_winrpa_cpp_record_status,                 0},
+    {"_winrpa_cpp_record_stop",                   (DL_FUNC) &_winrpa_cpp_record_stop,                   0},
+    {"_winrpa_cpp_record_system_metrics",         (DL_FUNC) &_winrpa_cpp_record_system_metrics,         0},
+    {"_winrpa_cpp_record_vk_selftest",            (DL_FUNC) &_winrpa_cpp_record_vk_selftest,            0},
     {"_winrpa_cpp_reset_abort",                   (DL_FUNC) &_winrpa_cpp_reset_abort,                   0},
     {"_winrpa_cpp_ring_buffer_selftest",          (DL_FUNC) &_winrpa_cpp_ring_buffer_selftest,          1},
     {"_winrpa_cpp_shutdown_runtime",              (DL_FUNC) &_winrpa_cpp_shutdown_runtime,              0},

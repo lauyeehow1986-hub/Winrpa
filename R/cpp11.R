@@ -68,6 +68,14 @@ cpp_cdp_parse_json <- function(raw_json) {
   .Call(`_winrpa_cpp_cdp_parse_json`, raw_json)
 }
 
+cpp_cdp_record_set_active <- function(sess_xptr, active, clear) {
+  invisible(.Call(`_winrpa_cpp_cdp_record_set_active`, sess_xptr, active, clear))
+}
+
+cpp_cdp_record_drain <- function(sess_xptr) {
+  .Call(`_winrpa_cpp_cdp_record_drain`, sess_xptr)
+}
+
 cpp_get_display_metrics <- function() {
   .Call(`_winrpa_cpp_get_display_metrics`)
 }
@@ -154,6 +162,30 @@ cpp_ring_buffer_selftest <- function(n_push) {
 
 cpp_encode_bmp_test <- function(width, height) {
   .Call(`_winrpa_cpp_encode_bmp_test`, width, height)
+}
+
+cpp_record_start <- function(include_wheel, redact_passwords, install_stop_hotkey, stop_mods, stop_vk) {
+  .Call(`_winrpa_cpp_record_start`, include_wheel, redact_passwords, install_stop_hotkey, stop_mods, stop_vk)
+}
+
+cpp_record_stop <- function() {
+  .Call(`_winrpa_cpp_record_stop`)
+}
+
+cpp_record_status <- function() {
+  .Call(`_winrpa_cpp_record_status`)
+}
+
+cpp_record_system_metrics <- function() {
+  .Call(`_winrpa_cpp_record_system_metrics`)
+}
+
+cpp_record_ring_selftest <- function(n_push) {
+  .Call(`_winrpa_cpp_record_ring_selftest`, n_push)
+}
+
+cpp_record_vk_selftest <- function() {
+  .Call(`_winrpa_cpp_record_vk_selftest`)
 }
 
 cpp_uia_list_windows <- function() {
