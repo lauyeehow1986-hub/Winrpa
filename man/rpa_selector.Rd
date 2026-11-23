@@ -9,7 +9,8 @@ rpa_selector(
   automation_id = NULL,
   control_type = NULL,
   class_name = NULL,
-  regex = FALSE
+  regex = FALSE,
+  exact = FALSE
 )
 }
 \arguments{
@@ -24,6 +25,10 @@ rpa_selector(
 
 \item{regex}{Logical scalar; if \code{TRUE}, string criteria are treated as
 regular expressions.}
+
+\item{exact}{Logical scalar; if \code{TRUE}, match \code{name} and \code{class_name}
+by case-insensitive equality instead of substring search (allowing
+server-side UI Automation filtering).}
 }
 \value{
 An object of class \code{"winrpa_selector"}.

@@ -46,8 +46,8 @@
           <div>
             <div class="badge-row">
               <span class="pill pill-indigo">C++17 + cpp11 Native</span>
-              <span class="pill pill-sky">44 Functions + 4 S3 Methods</span>
-              <span class="pill pill-green">64 Tests PASS | CRAN Check 0/0/0</span>
+              <span class="pill pill-sky">49 Functions + 4 S3 Methods</span>
+              <span class="pill pill-green">102 Tests PASS | CRAN Check 0/0/0</span>
             </div>
 
             <h1>
@@ -68,7 +68,7 @@
             </div>
 
             <div class="cta-row">
-              <a class="btn-primary" href="#api">Explore 44+ API Functions</a>
+              <a class="btn-primary" href="#api">Explore All 53 API Symbols</a>
               <a class="btn-secondary" href="#screenshots">View Screenshots &amp; Live Output</a>
               <a class="btn-secondary" href="https://github.com/lauyeehow1986-hub/Winrpa" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
             </div>
@@ -83,15 +83,15 @@
               </div>
               <pre><code class="lang-r" id="hero-code">library(winrpa)
 
-# Launch Notepad visibly & wait deterministically
+# Launch Notepad visibly & bring window to foreground
 rpa_launch("notepad.exe")
 win <- rpa_wait_for(
   function() tryCatch(rpa_window(class_name = "Notepad"), error = function(e) NULL),
   timeout = 5, interval = 0.05, label = "Notepad window"
-)
+) |> rpa_window_focus()
 
-# Pipe-friendly UIA control lookup & multi-mode input
-editor <- rpa_find(win, control_type = "Document")
+# Server-side UIA lookup with bounded depth & multi-mode input
+editor <- rpa_find(win, control_type = "Document", max_depth = 4L)
 editor |>
   rpa_type("Hello from winrpa! (Unicode: café 日本語)\n", mode = "unicode") |>
   rpa_type("Hardware scancode test 123\n", mode = "scancode", delay_ms = 5L)
@@ -104,15 +104,15 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
 
         <div class="metrics-strip">
           <div class="metric-card">
-            <div class="metric-val mono">44 + 4 S3</div>
+            <div class="metric-val mono">49 + 4 S3</div>
             <div class="metric-lbl">Exported functions &amp; S3 print/format methods</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val mono">8 Patterns</div>
-            <div class="metric-lbl">UIA Invoke, Value, Toggle, Selection, Expand, Scroll, Grid &amp; Table</div>
+            <div class="metric-val mono">9 Patterns</div>
+            <div class="metric-lbl">Invoke, Value, Toggle, Selection, Expand, Scroll, Grid, Table &amp; Window</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val mono">64 / 0 / 0</div>
+            <div class="metric-val mono">102 / 0 / 0</div>
             <div class="metric-lbl">testthat assertions pass; R CMD check 0 err / 0 warn / 0 note</div>
           </div>
           <div class="metric-card">
@@ -136,11 +136,11 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
           <article class="feature-card">
             <div class="feature-icon mono">01</div>
             <h3>MTA COM UI Automation</h3>
-            <p>Dedicated <code>COINIT_MULTITHREADED</code> worker isolates <code>IUIAutomation</code> from R's STA GUI thread. Supports bounded subtree inspection, O(1) cached fetches, regex matching, and <code>GridPattern</code>/<code>TablePattern</code> extraction to R <code>data.frame</code>.</p>
+            <p>Dedicated <code>COINIT_MULTITHREADED</code> worker pushes <code>exact = TRUE</code> / <code>ControlType</code> / <code>AutomationId</code> predicates server-side, supports bounded <code>max_depth</code> BFS, window lifecycle helpers (<code>rpa_window_focus()</code>, <code>rpa_window_maximize()</code>), post-scroll <code>rpa_click()</code> re-query, and <code>rpa_read_table()</code>.</p>
             <div class="tag-list">
-              <span class="tag">IUIAutomation</span>
-              <span class="tag">rpa_inspect_tree</span>
-              <span class="tag">rpa_read_table</span>
+              <span class="tag">Server-Side UIA</span>
+              <span class="tag">rpa_window_focus</span>
+              <span class="tag">Post-Scroll Click</span>
             </div>
           </article>
 
@@ -413,7 +413,7 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
         <div class="section-header">
           <span class="eyebrow">API Reference</span>
           <h2>Searchable Function &amp; S3 Method Explorer</h2>
-          <p>Browse every single symbol exported in <code>NAMESPACE</code> — all 44 functions and 4 S3 methods with full signatures, return schemas, and copyable R examples.</p>
+          <p>Browse every single symbol exported in <code>NAMESPACE</code> — all 49 functions and 4 S3 methods with full signatures, return schemas, and copyable R examples.</p>
         </div>
 
         <div class="api-controls">
@@ -434,7 +434,7 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
         <div class="section-header">
           <span class="eyebrow">Quality Assurance</span>
           <h2>Automated &amp; Live Windows 11 Verification</h2>
-          <p>Actual observed checks executed against commit <code>8d35c7b</code> prior to release.</p>
+          <p>Verified automated build, static, and C++ sanitizer checks paired with live Windows 11 RStudio desktop tests.</p>
         </div>
 
         <div class="verify-grid">
@@ -444,7 +444,7 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
               <tbody>
                 <tr>
                   <td><code>devtools::test()</code> suite</td>
-                  <td class="status-ok">64 PASS / 0 FAIL / 0 WARN</td>
+                  <td class="status-ok">102 PASS / 0 FAIL / 0 WARN</td>
                 </tr>
                 <tr>
                   <td><code>R CMD check --no-manual</code></td>

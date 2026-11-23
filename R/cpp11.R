@@ -112,8 +112,8 @@ cpp_uia_find_window <- function(title, class_name, pid, use_regex) {
   .Call(`_winrpa_cpp_uia_find_window`, title, class_name, pid, use_regex)
 }
 
-cpp_uia_find_elements <- function(parent_xptr, name, automation_id, control_type, class_name, use_regex, max_results) {
-  .Call(`_winrpa_cpp_uia_find_elements`, parent_xptr, name, automation_id, control_type, class_name, use_regex, max_results)
+cpp_uia_find_elements <- function(parent_xptr, name, automation_id, control_type, class_name, use_regex, exact, max_results, max_depth) {
+  .Call(`_winrpa_cpp_uia_find_elements`, parent_xptr, name, automation_id, control_type, class_name, use_regex, exact, max_results, max_depth)
 }
 
 cpp_uia_element_info <- function(elem_xptr) {
@@ -126,6 +126,14 @@ cpp_uia_snapshot_tree <- function(elem_xptr, max_depth, max_nodes) {
 
 cpp_uia_set_focus <- function(elem_xptr) {
   invisible(.Call(`_winrpa_cpp_uia_set_focus`, elem_xptr))
+}
+
+cpp_uia_window_focus <- function(elem_xptr) {
+  invisible(.Call(`_winrpa_cpp_uia_window_focus`, elem_xptr))
+}
+
+cpp_uia_window_state <- function(elem_xptr, action) {
+  invisible(.Call(`_winrpa_cpp_uia_window_state`, elem_xptr, action))
 }
 
 cpp_uia_invoke <- function(elem_xptr) {

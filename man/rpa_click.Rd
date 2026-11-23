@@ -26,8 +26,8 @@ Invisibly returns \code{target} for pipe chaining.
 }
 \description{
 Activates a control via \code{InvokePattern} when available in \code{"auto"} or
-\code{"invoke"} mode, or falls back to mouse click injection at the control's
-bounding-rectangle center.
+\code{"invoke"} mode, or scrolls off-screen controls into view and re-queries the
+updated bounding-rectangle center before dispatching mouse click injection.
 }
 \examples{
 \dontshow{if (interactive() && .Platform$OS.type == "windows") withAutoprint(\{ # examplesIf}

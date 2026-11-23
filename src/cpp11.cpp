@@ -211,10 +211,10 @@ extern "C" SEXP _winrpa_cpp_uia_find_window(SEXP title, SEXP class_name, SEXP pi
   END_CPP11
 }
 // uia_engine.cpp
-cpp11::writable::list cpp_uia_find_elements(SEXP parent_xptr, std::string name, std::string automation_id, std::string control_type, std::string class_name, bool use_regex, int max_results);
-extern "C" SEXP _winrpa_cpp_uia_find_elements(SEXP parent_xptr, SEXP name, SEXP automation_id, SEXP control_type, SEXP class_name, SEXP use_regex, SEXP max_results) {
+cpp11::writable::list cpp_uia_find_elements(SEXP parent_xptr, std::string name, std::string automation_id, std::string control_type, std::string class_name, bool use_regex, bool exact, int max_results, int max_depth);
+extern "C" SEXP _winrpa_cpp_uia_find_elements(SEXP parent_xptr, SEXP name, SEXP automation_id, SEXP control_type, SEXP class_name, SEXP use_regex, SEXP exact, SEXP max_results, SEXP max_depth) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cpp_uia_find_elements(cpp11::as_cpp<cpp11::decay_t<SEXP>>(parent_xptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(name), cpp11::as_cpp<cpp11::decay_t<std::string>>(automation_id), cpp11::as_cpp<cpp11::decay_t<std::string>>(control_type), cpp11::as_cpp<cpp11::decay_t<std::string>>(class_name), cpp11::as_cpp<cpp11::decay_t<bool>>(use_regex), cpp11::as_cpp<cpp11::decay_t<int>>(max_results)));
+    return cpp11::as_sexp(cpp_uia_find_elements(cpp11::as_cpp<cpp11::decay_t<SEXP>>(parent_xptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(name), cpp11::as_cpp<cpp11::decay_t<std::string>>(automation_id), cpp11::as_cpp<cpp11::decay_t<std::string>>(control_type), cpp11::as_cpp<cpp11::decay_t<std::string>>(class_name), cpp11::as_cpp<cpp11::decay_t<bool>>(use_regex), cpp11::as_cpp<cpp11::decay_t<bool>>(exact), cpp11::as_cpp<cpp11::decay_t<int>>(max_results), cpp11::as_cpp<cpp11::decay_t<int>>(max_depth)));
   END_CPP11
 }
 // uia_engine.cpp
@@ -236,6 +236,22 @@ void cpp_uia_set_focus(SEXP elem_xptr);
 extern "C" SEXP _winrpa_cpp_uia_set_focus(SEXP elem_xptr) {
   BEGIN_CPP11
     cpp_uia_set_focus(cpp11::as_cpp<cpp11::decay_t<SEXP>>(elem_xptr));
+    return R_NilValue;
+  END_CPP11
+}
+// uia_engine.cpp
+void cpp_uia_window_focus(SEXP elem_xptr);
+extern "C" SEXP _winrpa_cpp_uia_window_focus(SEXP elem_xptr) {
+  BEGIN_CPP11
+    cpp_uia_window_focus(cpp11::as_cpp<cpp11::decay_t<SEXP>>(elem_xptr));
+    return R_NilValue;
+  END_CPP11
+}
+// uia_engine.cpp
+void cpp_uia_window_state(SEXP elem_xptr, std::string action);
+extern "C" SEXP _winrpa_cpp_uia_window_state(SEXP elem_xptr, SEXP action) {
+  BEGIN_CPP11
+    cpp_uia_window_state(cpp11::as_cpp<cpp11::decay_t<SEXP>>(elem_xptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(action));
     return R_NilValue;
   END_CPP11
 }
@@ -331,7 +347,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_type_text",                     (DL_FUNC) &_winrpa_cpp_type_text,                     3},
     {"_winrpa_cpp_uia_element_info",              (DL_FUNC) &_winrpa_cpp_uia_element_info,              1},
     {"_winrpa_cpp_uia_expand_collapse",           (DL_FUNC) &_winrpa_cpp_uia_expand_collapse,           2},
-    {"_winrpa_cpp_uia_find_elements",             (DL_FUNC) &_winrpa_cpp_uia_find_elements,             7},
+    {"_winrpa_cpp_uia_find_elements",             (DL_FUNC) &_winrpa_cpp_uia_find_elements,             9},
     {"_winrpa_cpp_uia_find_window",               (DL_FUNC) &_winrpa_cpp_uia_find_window,               4},
     {"_winrpa_cpp_uia_get_value",                 (DL_FUNC) &_winrpa_cpp_uia_get_value,                 1},
     {"_winrpa_cpp_uia_invoke",                    (DL_FUNC) &_winrpa_cpp_uia_invoke,                    1},
@@ -343,6 +359,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_uia_set_value",                 (DL_FUNC) &_winrpa_cpp_uia_set_value,                 2},
     {"_winrpa_cpp_uia_snapshot_tree",             (DL_FUNC) &_winrpa_cpp_uia_snapshot_tree,             3},
     {"_winrpa_cpp_uia_toggle",                    (DL_FUNC) &_winrpa_cpp_uia_toggle,                    1},
+    {"_winrpa_cpp_uia_window_focus",              (DL_FUNC) &_winrpa_cpp_uia_window_focus,              1},
+    {"_winrpa_cpp_uia_window_state",              (DL_FUNC) &_winrpa_cpp_uia_window_state,              2},
     {NULL, NULL, 0}
 };
 }

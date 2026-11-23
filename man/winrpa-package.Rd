@@ -11,6 +11,7 @@ Automates desktop user interfaces from 'R' using native 'C++17' bindings via 'cp
 \seealso{
 Useful links:
 \itemize{
+  \item \url{https://lauyeehow1986-hub.github.io/Winrpa/}
   \item \url{https://github.com/lauyeehow1986-hub/Winrpa}
   \item Report bugs at \url{https://github.com/lauyeehow1986-hub/Winrpa/issues}
 }

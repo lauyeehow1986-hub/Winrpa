@@ -34,6 +34,9 @@ as_winrpa_element <- function(ptr) {
 #' @param class_name Optional character scalar matching Win32/UIA `ClassName`.
 #' @param regex Logical scalar; if `TRUE`, string criteria are treated as
 #'   regular expressions.
+#' @param exact Logical scalar; if `TRUE`, match `name` and `class_name`
+#'   by case-insensitive equality instead of substring search (allowing
+#'   server-side UI Automation filtering).
 #'
 #' @return An object of class `"winrpa_selector"`.
 #' @export
@@ -44,13 +47,17 @@ rpa_selector <- function(name = NULL,
                          automation_id = NULL,
                          control_type = NULL,
                          class_name = NULL,
-                         regex = FALSE) {
+                         regex = FALSE,
+                         exact = FALSE) {
   name <- assert_optional_scalar_string(name, "name")
   automation_id <- assert_optional_scalar_string(automation_id, "automation_id")
   control_type <- assert_optional_scalar_string(control_type, "control_type")
   class_name <- assert_optional_scalar_string(class_name, "class_name")
   if (!is.logical(regex) || length(regex) != 1L || is.na(regex)) {
     rlang::abort("'regex' must be a single non-NA logical value.")
+  }
+  if (!is.logical(exact) || length(exact) != 1L || is.na(exact)) {
+    rlang::abort("'exact' must be a single non-NA logical value.")
   }
 
   structure(
@@ -59,7 +66,8 @@ rpa_selector <- function(name = NULL,
       automation_id = automation_id,
       control_type = control_type,
       class_name = class_name,
-      regex = regex
+      regex = regex,
+      exact = exact
     ),
     class = "winrpa_selector"
   )
@@ -85,6 +93,9 @@ format.winrpa_selector <- function(x, ...) {
   }
   if (isTRUE(x$regex)) {
     parts <- c(parts, "regex=TRUE")
+  }
+  if (isTRUE(x$exact)) {
+    parts <- c(parts, "exact=TRUE")
   }
   if (length(parts) == 0L) {
     return("<winrpa_selector: (any)>")
@@ -221,7 +232,8 @@ resolve_find_criteria <- function(selector,
                                   automation_id,
                                   control_type,
                                   class_name,
-                                  regex) {
+                                  regex,
+                                  exact) {
   if (!is.null(selector)) {
     if (!inherits(selector, "winrpa_selector")) {
       rlang::abort("'selector' must be a 'winrpa_selector' object.")
@@ -233,7 +245,8 @@ resolve_find_criteria <- function(selector,
     automation_id = automation_id,
     control_type = control_type,
     class_name = class_name,
-    regex = regex
+    regex = regex,
+    exact = exact
   )
 }
 
@@ -241,6 +254,9 @@ resolve_find_criteria <- function(selector,
 #'
 #' Searches the UI Automation subtree beneath `parent` (or the desktop root
 #' when `parent = NULL`) using either a `winrpa_selector` or inline criteria.
+#' Server-side UI Automation property conditions are pushed down automatically
+#' for `control_type`, `automation_id`, and `exact = TRUE` searches, while
+#' setting `max_depth` bounds traversal via `ControlViewWalker`.
 #'
 #' @param parent A `winrpa_element` scope root, a `winrpa_selector`, or `NULL`
 #'   for the desktop root.
@@ -248,7 +264,11 @@ resolve_find_criteria <- function(selector,
 #' @param name,automation_id,control_type,class_name Optional character scalar
 #'   filters used when `selector` is `NULL`.
 #' @param regex Logical scalar; treat string filters as regular expressions.
+#' @param exact Logical scalar; match `name` and `class_name` by
+#'   case-insensitive equality rather than substring search.
 #' @param max_results Maximum number of matching elements to return.
+#' @param max_depth Optional non-negative integer depth cap (`0` checks
+#'   `parent` only; `NULL` searches the full subtree).
 #'
 #' @return `rpa_find_all()` returns a list of `"winrpa_element"` objects;
 #'   `rpa_find()` returns the first matching `"winrpa_element"` or throws an
@@ -268,7 +288,9 @@ rpa_find_all <- function(parent = NULL,
                          control_type = NULL,
                          class_name = NULL,
                          regex = FALSE,
-                         max_results = 100L) {
+                         exact = FALSE,
+                         max_results = 100L,
+                         max_depth = NULL) {
   if (inherits(parent, "winrpa_selector") && is.null(selector)) {
     selector <- parent
     parent <- NULL
@@ -279,7 +301,18 @@ rpa_find_all <- function(parent = NULL,
   if (!is.numeric(max_results) || length(max_results) != 1L || is.na(max_results) || max_results < 1) {
     rlang::abort("'max_results' must be a positive integer.")
   }
-  sel <- resolve_find_criteria(selector, name, automation_id, control_type, class_name, regex)
+  if (!is.null(max_depth)) {
+    if (!is.numeric(max_depth) || length(max_depth) != 1L || is.na(max_depth) ||
+        !is.finite(max_depth) || max_depth < 0) {
+      rlang::abort("'max_depth' must be NULL or a non-negative integer.")
+    }
+    depth_int <- as.integer(max_depth)
+  } else {
+    depth_int <- -1L
+  }
+  sel <- resolve_find_criteria(
+    selector, name, automation_id, control_type, class_name, regex, exact
+  )
   rpa_session_check()
 
   ptrs <- cpp_uia_find_elements(
@@ -289,7 +322,9 @@ rpa_find_all <- function(parent = NULL,
     if (is.null(sel$control_type)) "" else sel$control_type,
     if (is.null(sel$class_name)) "" else sel$class_name,
     isTRUE(sel$regex),
-    as.integer(max_results)
+    isTRUE(sel$exact),
+    as.integer(max_results),
+    depth_int
   )
   lapply(ptrs, as_winrpa_element)
 }
@@ -302,16 +337,21 @@ rpa_find <- function(parent = NULL,
                      automation_id = NULL,
                      control_type = NULL,
                      class_name = NULL,
-                     regex = FALSE) {
+                     regex = FALSE,
+                     exact = FALSE,
+                     max_depth = NULL) {
   if (inherits(parent, "winrpa_selector") && is.null(selector)) {
     selector <- parent
     parent <- NULL
   }
-  sel <- resolve_find_criteria(selector, name, automation_id, control_type, class_name, regex)
+  sel <- resolve_find_criteria(
+    selector, name, automation_id, control_type, class_name, regex, exact
+  )
   matches <- rpa_find_all(
     parent = parent,
     selector = sel,
-    max_results = 1L
+    max_results = 1L,
+    max_depth = max_depth
   )
   if (length(matches) == 0L) {
     rlang::abort(sprintf("No UI element matched %s.", format(sel)))

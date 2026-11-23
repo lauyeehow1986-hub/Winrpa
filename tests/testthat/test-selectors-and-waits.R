@@ -118,3 +118,115 @@ test_that("rpa_type defaults to 5ms pacing, supports paste mode, and blocks past
   expect_match(err, "secret")
   expect_false(grepl("TopSecret!42", err, fixed = TRUE))
 })
+
+test_that("rpa_click() scrolls element into view before reading bounding rect and clicking", {
+  state <- new.env(parent = emptyenv())
+  state$scrolled <- FALSE
+  state$clicked <- NULL
+  state$info_calls <- 0L
+  fake_elem <- structure(list(ptr = NULL), class = "winrpa_element")
+
+  testthat::local_mocked_bindings(
+    rpa_session_check = function(...) invisible(TRUE),
+    cpp_uia_scroll_into_view = function(ptr) {
+      state$scrolled <- TRUE
+      invisible(NULL)
+    },
+    cpp_uia_element_info = function(ptr) {
+      state$info_calls <- state$info_calls + 1L
+      if (!state$scrolled) {
+        list(left = 100L, top = 1500L, right = 200L, bottom = 1540L, patterns = "ScrollItem")
+      } else {
+        list(left = 100L, top = 300L, right = 200L, bottom = 340L, patterns = "ScrollItem")
+      }
+    },
+    cpp_mouse_click = function(x, y, button, clicks, move_first) {
+      state$clicked <- list(x = x, y = y, button = button, clicks = clicks, move_first = move_first)
+      invisible(NULL)
+    }
+  )
+
+  res <- rpa_click(fake_elem, method = "mouse")
+  expect_identical(res, fake_elem)
+  expect_true(state$scrolled)
+  expect_true(state$info_calls >= 2L)
+  expect_equal(state$clicked$x, 150L)
+  expect_equal(state$clicked$y, 320L)
+
+  # Subtest B: pre-scroll empty bounding rect becomes valid after ScrollIntoView
+  state$scrolled <- FALSE
+  state$clicked <- NULL
+  testthat::local_mocked_bindings(
+    cpp_uia_element_info = function(ptr) {
+      if (!state$scrolled) {
+        list(left = 0L, top = 0L, right = 0L, bottom = 0L, patterns = "ScrollItem")
+      } else {
+        list(left = 50L, top = 100L, right = 150L, bottom = 140L, patterns = "ScrollItem")
+      }
+    }
+  )
+
+  rpa_click(fake_elem, method = "mouse")
+  expect_equal(state$clicked$x, 100L)
+  expect_equal(state$clicked$y, 120L)
+})
+
+test_that("rpa_window_* lifecycle helpers validate inputs and dispatch actions", {
+  for (fn_name in c(
+    "rpa_window_focus",
+    "rpa_window_maximize",
+    "rpa_window_minimize",
+    "rpa_window_restore",
+    "rpa_window_close"
+  )) {
+    expect_true(exists(fn_name, mode = "function"), info = fn_name)
+    fn <- get(fn_name, mode = "function")
+    expect_error(fn("not-an-element"), "winrpa_element")
+  }
+
+  calls <- new.env(parent = emptyenv())
+  calls$actions <- character()
+  calls$focused <- 0L
+  fake_win <- structure(list(ptr = NULL), class = "winrpa_element")
+
+  testthat::local_mocked_bindings(
+    rpa_session_check = function(...) invisible(TRUE),
+    cpp_uia_window_focus = function(ptr) {
+      calls$focused <- calls$focused + 1L
+      invisible(NULL)
+    },
+    cpp_uia_window_state = function(ptr, action) {
+      calls$actions <- c(calls$actions, action)
+      invisible(NULL)
+    }
+  )
+
+  expect_identical(rpa_window_focus(fake_win), fake_win)
+  expect_identical(rpa_window_maximize(fake_win), fake_win)
+  expect_identical(rpa_window_minimize(fake_win), fake_win)
+  expect_identical(rpa_window_restore(fake_win), fake_win)
+  expect_null(rpa_window_close(fake_win))
+
+  expect_equal(calls$focused, 1L)
+  expect_equal(calls$actions, c("maximize", "minimize", "restore", "close"))
+})
+
+test_that("rpa_selector(), rpa_find(), and rpa_find_all() support exact matching and max_depth validation", {
+  sel <- rpa_selector(name = "OK", exact = TRUE)
+  expect_true(isTRUE(sel$exact))
+  expect_match(format(sel), "exact=TRUE")
+  expect_error(rpa_selector(exact = "yes"), "logical")
+
+  expect_true("exact" %in% names(formals(rpa_find)))
+  expect_true("max_depth" %in% names(formals(rpa_find)))
+  expect_true("exact" %in% names(formals(rpa_find_all)))
+  expect_true("max_depth" %in% names(formals(rpa_find_all)))
+  expect_identical(formals(rpa_find)$exact, FALSE)
+  expect_null(formals(rpa_find)$max_depth)
+
+  expect_error(rpa_find_all(name = "OK", max_depth = -1L), "max_depth")
+  expect_error(rpa_find_all(name = "OK", max_depth = "deep"), "max_depth")
+  expect_error(rpa_find_all(name = "OK", max_depth = NA_real_), "max_depth")
+  expect_error(rpa_find(name = "OK", exact = "yes"), "logical")
+  expect_error(rpa_find(name = "OK", max_depth = -2L), "max_depth")
+})

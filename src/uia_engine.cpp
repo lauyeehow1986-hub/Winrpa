@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <queue>
 #include <regex>
 #include <stdexcept>
 #include <string>
@@ -170,8 +171,48 @@ ComPtr<IUIAutomationCacheRequest> make_standard_cache_request(
     req->AddPattern(UIA_ScrollItemPatternId);
     req->AddPattern(UIA_GridPatternId);
     req->AddPattern(UIA_TablePatternId);
+    req->AddPattern(UIA_WindowPatternId);
   }
   return req;
+}
+
+ComPtr<IUIAutomationCondition> make_bstr_prop_condition(
+    IUIAutomation* uia,
+    PROPERTYID prop_id,
+    const std::string& utf8_val,
+    bool ignore_case) {
+  const std::wstring wide = utf8_to_wide(utf8_val);
+  VariantGuard v;
+  v.v.vt = VT_BSTR;
+  v.v.bstrVal = SysAllocString(wide.c_str());
+  if (v.v.bstrVal == nullptr) {
+    throw std::runtime_error("SysAllocString allocation failed for UIA property condition.");
+  }
+  ComPtr<IUIAutomationCondition> cond;
+  const PropertyConditionFlags flags =
+      ignore_case ? PropertyConditionFlags_IgnoreCase : PropertyConditionFlags_None;
+  if (FAILED(uia->CreatePropertyConditionEx(prop_id, v.v, flags, cond.put())) || !cond) {
+    throw std::runtime_error("Failed to create UIA string property condition.");
+  }
+  return cond;
+}
+
+void and_condition(
+    IUIAutomation* uia,
+    ComPtr<IUIAutomationCondition>& acc,
+    ComPtr<IUIAutomationCondition> next) {
+  if (!next) {
+    return;
+  }
+  if (!acc) {
+    acc = std::move(next);
+    return;
+  }
+  ComPtr<IUIAutomationCondition> combined;
+  if (FAILED(uia->CreateAndCondition(acc.get(), next.get(), combined.put())) || !combined) {
+    throw std::runtime_error("Failed to combine UIA conditions with AND.");
+  }
+  acc = std::move(combined);
 }
 
 struct CachedNodeData {
@@ -242,7 +283,8 @@ CachedNodeData read_cached_node(IUIAutomationElement* el, bool read_patterns) {
         {UIA_ExpandCollapsePatternId, "ExpandCollapse"},
         {UIA_ScrollItemPatternId, "ScrollItem"},
         {UIA_GridPatternId, "Grid"},
-        {UIA_TablePatternId, "Table"}
+        {UIA_TablePatternId, "Table"},
+        {UIA_WindowPatternId, "Window"}
     };
     for (const auto& p : kPats) {
       ComPtr<IUnknown> pat;
@@ -264,6 +306,18 @@ IUIAutomationElement* unwrap_element_or_stop(SEXP elem_xptr) {
     cpp11::stop("Element handle is null or already released.");
   }
   return handle->elem;
+}
+
+HWND get_element_hwnd(IUIAutomationElement* el) {
+  if (el == nullptr) {
+    return nullptr;
+  }
+  UIA_HWND raw_hwnd = nullptr;
+  if (FAILED(el->get_CurrentNativeWindowHandle(&raw_hwnd)) || raw_hwnd == nullptr) {
+    return nullptr;
+  }
+  HWND hwnd = reinterpret_cast<HWND>(raw_hwnd);
+  return IsWindow(hwnd) ? hwnd : nullptr;
 }
 
 struct RawElementBag {
@@ -492,7 +546,9 @@ cpp11::writable::list cpp_uia_find_elements(
     std::string control_type,
     std::string class_name,
     bool use_regex,
-    int max_results) {
+    bool exact,
+    int max_results,
+    int max_depth) {
 #ifdef _WIN32
   IUIAutomationElement* parent_raw = nullptr;
   if (parent_xptr != R_NilValue) {
@@ -504,6 +560,7 @@ cpp11::writable::list cpp_uia_find_elements(
   if (has_ctype && !winrpa::string_to_control_type(control_type, ctype_id)) {
     cpp11::stop("Unknown UIA control_type: '%s'.", control_type.c_str());
   }
+  const std::string ctype_lower = winrpa::to_lower_ascii(control_type);
 
   std::wregex name_re;
   std::wregex aid_re;
@@ -519,6 +576,30 @@ cpp11::writable::list cpp_uia_find_elements(
   }
 
   const int limit = max_results <= 0 ? 100 : (max_results > 1000 ? 1000 : max_results);
+  const bool bounded_depth = max_depth >= 0;
+  const int depth_cap = bounded_depth ? (max_depth > 32 ? 32 : max_depth) : 0;
+
+  auto matches_node = [&](const winrpa::CachedNodeData& info, bool check_ctype) -> bool {
+    if (check_ctype && has_ctype && winrpa::to_lower_ascii(info.control_type) != ctype_lower) {
+      return false;
+    }
+    if (!winrpa::match_field(
+            info.name, name, use_regex, exact,
+            (!name.empty() && use_regex) ? &name_re : nullptr)) {
+      return false;
+    }
+    if (!winrpa::match_field(
+            info.automation_id, automation_id, use_regex, true,
+            (!automation_id.empty() && use_regex) ? &aid_re : nullptr)) {
+      return false;
+    }
+    if (!winrpa::match_field(
+            info.class_name, class_name, use_regex, exact,
+            (!class_name.empty() && use_regex) ? &cls_re : nullptr)) {
+      return false;
+    }
+    return true;
+  };
 
   struct FindElemsRes {
     bool ok = false;
@@ -541,22 +622,112 @@ cpp11::writable::list cpp_uia_find_elements(
       }
 
       auto cache_req = winrpa::make_standard_cache_request(uia, false);
+
+      if (bounded_depth) {
+        winrpa::ComPtr<IUIAutomationTreeWalker> walker;
+        if (FAILED(uia->get_ControlViewWalker(walker.put())) || !walker) {
+          out.error = "Failed to acquire UIA ControlViewWalker.";
+          return out;
+        }
+        winrpa::ComPtr<IUIAutomationElement> cached_root;
+        if (FAILED(scope_root->BuildUpdatedCache(cache_req.get(), cached_root.put())) ||
+            !cached_root) {
+          out.error = "Failed to cache root element for UIA search.";
+          return out;
+        }
+        std::queue<std::pair<winrpa::ComPtr<IUIAutomationElement>, int>> q;
+        q.push({std::move(cached_root), 0});
+        while (!q.empty() && static_cast<int>(out.elems.size()) < limit) {
+          if (winrpa::g_abort_requested.load(std::memory_order_acquire)) {
+            throw std::runtime_error("UI element search aborted by emergency kill-switch.");
+          }
+          auto item = std::move(q.front());
+          q.pop();
+          winrpa::ComPtr<IUIAutomationElement> node = std::move(item.first);
+          const int depth = item.second;
+          const auto info = winrpa::read_cached_node(node.get(), false);
+          if (matches_node(info, true)) {
+            node->AddRef();
+            out.elems.push_back(node.get());
+            if (static_cast<int>(out.elems.size()) >= limit) {
+              break;
+            }
+          }
+          if (depth < depth_cap) {
+            winrpa::ComPtr<IUIAutomationElement> child;
+            if (SUCCEEDED(walker->GetFirstChildElementBuildCache(
+                    node.get(), cache_req.get(), child.put()))) {
+              while (child) {
+                if (winrpa::g_abort_requested.load(std::memory_order_acquire)) {
+                  throw std::runtime_error("UI element search aborted by emergency kill-switch.");
+                }
+                winrpa::ComPtr<IUIAutomationElement> next;
+                walker->GetNextSiblingElementBuildCache(
+                    child.get(), cache_req.get(), next.put());
+                q.push({std::move(child), depth + 1});
+                child = std::move(next);
+              }
+            }
+          }
+        }
+        out.ok = true;
+        return out;
+      }
+
+      // Unbounded subtree search: push exact / ControlType predicates server-side.
       winrpa::ComPtr<IUIAutomationCondition> cond;
       if (has_ctype) {
         winrpa::VariantGuard v;
         v.v.vt = VT_I4;
         v.v.lVal = ctype_id;
+        winrpa::ComPtr<IUIAutomationCondition> ctype_cond;
         if (FAILED(uia->CreatePropertyCondition(
-                UIA_ControlTypePropertyId, v.v, cond.put())) ||
-            !cond) {
+                UIA_ControlTypePropertyId, v.v, ctype_cond.put())) ||
+            !ctype_cond) {
           out.error = "Failed to create UIA ControlType condition.";
           return out;
         }
-      } else {
+        winrpa::and_condition(uia, cond, std::move(ctype_cond));
+      }
+      if (!use_regex && !automation_id.empty()) {
+        winrpa::and_condition(
+            uia, cond,
+            winrpa::make_bstr_prop_condition(
+                uia, UIA_AutomationIdPropertyId, automation_id, true));
+      }
+      if (!use_regex && exact && !name.empty()) {
+        winrpa::and_condition(
+            uia, cond,
+            winrpa::make_bstr_prop_condition(uia, UIA_NamePropertyId, name, true));
+      }
+      if (!use_regex && exact && !class_name.empty()) {
+        winrpa::and_condition(
+            uia, cond,
+            winrpa::make_bstr_prop_condition(uia, UIA_ClassNamePropertyId, class_name, true));
+      }
+      if (!cond) {
         if (FAILED(uia->CreateTrueCondition(cond.put())) || !cond) {
           out.error = "Failed to create UIA true condition.";
           return out;
         }
+      }
+
+      const bool all_server_side =
+          !use_regex && (name.empty() || exact) && (class_name.empty() || exact);
+
+      if (limit == 1 && all_server_side) {
+        winrpa::ComPtr<IUIAutomationElement> found;
+        const HRESULT hr = scope_root->FindFirstBuildCache(
+            TreeScope_SubTree, cond.get(), cache_req.get(), found.put());
+        if (FAILED(hr)) {
+          out.error = "UIA subtree query failed.";
+          return out;
+        }
+        if (found) {
+          out.elems.push_back(found.detach());
+        }
+        out.ok = true;
+        return out;
       }
 
       winrpa::ComPtr<IUIAutomationElementArray> arr;
@@ -570,6 +741,9 @@ cpp11::writable::list cpp_uia_find_elements(
       int len = 0;
       arr->get_Length(&len);
       for (int i = 0; i < len; ++i) {
+        if (winrpa::g_abort_requested.load(std::memory_order_acquire)) {
+          throw std::runtime_error("UI element search aborted by emergency kill-switch.");
+        }
         if (static_cast<int>(out.elems.size()) >= limit) {
           break;
         }
@@ -578,19 +752,7 @@ cpp11::writable::list cpp_uia_find_elements(
           continue;
         }
         const auto info = winrpa::read_cached_node(el.get(), false);
-        if (!winrpa::match_field(
-                info.name, name, use_regex, false,
-                (!name.empty() && use_regex) ? &name_re : nullptr)) {
-          continue;
-        }
-        if (!winrpa::match_field(
-                info.automation_id, automation_id, use_regex, true,
-                (!automation_id.empty() && use_regex) ? &aid_re : nullptr)) {
-          continue;
-        }
-        if (!winrpa::match_field(
-                info.class_name, class_name, use_regex, false,
-                (!class_name.empty() && use_regex) ? &cls_re : nullptr)) {
+        if (!matches_node(info, false)) {
           continue;
         }
         out.elems.push_back(el.detach());
@@ -629,7 +791,9 @@ cpp11::writable::list cpp_uia_find_elements(
   (void)control_type;
   (void)class_name;
   (void)use_regex;
+  (void)exact;
   (void)max_results;
+  (void)max_depth;
   winrpa::require_windows_or_stop("cpp_uia_find_elements()");
   return cpp11::writable::list();
 #endif
@@ -850,6 +1014,129 @@ void cpp_uia_set_focus(SEXP elem_xptr) {
 #else
   (void)elem_xptr;
   winrpa::require_windows_or_stop("cpp_uia_set_focus()");
+#endif
+}
+
+[[cpp11::register]]
+void cpp_uia_window_focus(SEXP elem_xptr) {
+#ifdef _WIN32
+  IUIAutomationElement* el_raw = winrpa::unwrap_element_or_stop(elem_xptr);
+  struct OpRes { bool ok = false; std::string error; };
+  auto res = winrpa::MtaComWorker::instance().submit([el_raw](IUIAutomation*) -> OpRes {
+    winrpa::ComPtr<IUIAutomationWindowPattern> pat;
+    if (SUCCEEDED(el_raw->GetCurrentPatternAs(
+            UIA_WindowPatternId, IID_IUIAutomationWindowPattern,
+            reinterpret_cast<void**>(pat.put()))) &&
+        pat) {
+      WindowVisualState vis = WindowVisualState_Normal;
+      if (SUCCEEDED(pat->get_CurrentWindowVisualState(&vis)) &&
+          vis == WindowVisualState_Minimized) {
+        pat->SetWindowVisualState(WindowVisualState_Normal);
+      }
+    }
+
+    bool hwnd_ok = false;
+    HWND hwnd = winrpa::get_element_hwnd(el_raw);
+    if (hwnd != nullptr) {
+      if (IsIconic(hwnd)) {
+        ShowWindow(hwnd, SW_RESTORE);
+      }
+      BringWindowToTop(hwnd);
+      if (SetForegroundWindow(hwnd) != FALSE) {
+        hwnd_ok = true;
+      }
+      HWND fg = GetForegroundWindow();
+      if (fg != hwnd) {
+        const DWORD my_tid = GetCurrentThreadId();
+        const DWORD fg_tid = (fg != nullptr) ? GetWindowThreadProcessId(fg, nullptr) : 0UL;
+        const bool attached = (fg_tid != 0UL && fg_tid != my_tid &&
+                               AttachThreadInput(my_tid, fg_tid, TRUE) != FALSE);
+        BringWindowToTop(hwnd);
+        if (SetForegroundWindow(hwnd) != FALSE || GetForegroundWindow() == hwnd) {
+          hwnd_ok = true;
+        }
+        if (attached) {
+          AttachThreadInput(my_tid, fg_tid, FALSE);
+        }
+      } else {
+        hwnd_ok = true;
+      }
+    }
+
+    const HRESULT hr_focus = el_raw->SetFocus();
+    if (!hwnd_ok && FAILED(hr_focus)) {
+      return {false, "Failed to focus or bring target window/element to the foreground."};
+    }
+    return {true, ""};
+  });
+  if (!res.ok) cpp11::stop("%s", res.error.c_str());
+#else
+  (void)elem_xptr;
+  winrpa::require_windows_or_stop("cpp_uia_window_focus()");
+#endif
+}
+
+[[cpp11::register]]
+void cpp_uia_window_state(SEXP elem_xptr, std::string action) {
+  if (action != "maximize" && action != "minimize" &&
+      action != "restore" && action != "close") {
+    cpp11::stop("Unknown window state action: '%s'.", action.c_str());
+  }
+#ifdef _WIN32
+  IUIAutomationElement* el_raw = winrpa::unwrap_element_or_stop(elem_xptr);
+  struct OpRes { bool ok = false; std::string error; };
+  auto res = winrpa::MtaComWorker::instance().submit([el_raw, &action](IUIAutomation*) -> OpRes {
+    winrpa::ComPtr<IUIAutomationWindowPattern> pat;
+    if (SUCCEEDED(el_raw->GetCurrentPatternAs(
+            UIA_WindowPatternId, IID_IUIAutomationWindowPattern,
+            reinterpret_cast<void**>(pat.put()))) &&
+        pat) {
+      HRESULT hr = E_FAIL;
+      if (action == "maximize") {
+        hr = pat->SetWindowVisualState(WindowVisualState_Maximized);
+      } else if (action == "minimize") {
+        hr = pat->SetWindowVisualState(WindowVisualState_Minimized);
+      } else if (action == "restore") {
+        hr = pat->SetWindowVisualState(WindowVisualState_Normal);
+      } else if (action == "close") {
+        hr = pat->Close();
+      }
+      if (SUCCEEDED(hr)) {
+        return {true, ""};
+      }
+    }
+
+    HWND hwnd = winrpa::get_element_hwnd(el_raw);
+    if (hwnd != nullptr) {
+      if (action == "maximize") {
+        ShowWindow(hwnd, SW_MAXIMIZE);
+        return {true, ""};
+      }
+      if (action == "minimize") {
+        ShowWindow(hwnd, SW_MINIMIZE);
+        return {true, ""};
+      }
+      if (action == "restore") {
+        ShowWindow(hwnd, SW_RESTORE);
+        return {true, ""};
+      }
+      if (action == "close") {
+        if (PostMessageW(hwnd, WM_CLOSE, static_cast<WPARAM>(0), static_cast<LPARAM>(0)) != FALSE) {
+          return {true, ""};
+        }
+      }
+    }
+
+    return {
+        false,
+        "Target element does not support UIA WindowPattern and exposes no active HWND."
+    };
+  });
+  if (!res.ok) cpp11::stop("%s", res.error.c_str());
+#else
+  (void)elem_xptr;
+  (void)action;
+  winrpa::require_windows_or_stop("cpp_uia_window_state()");
 #endif
 }
 

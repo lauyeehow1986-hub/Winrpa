@@ -1,8 +1,8 @@
 #' Click a UI Automation Element
 #'
 #' Activates a control via `InvokePattern` when available in `"auto"` or
-#' `"invoke"` mode, or falls back to mouse click injection at the control's
-#' bounding-rectangle center.
+#' `"invoke"` mode, or scrolls off-screen controls into view and re-queries the
+#' updated bounding-rectangle center before dispatching mouse click injection.
 #'
 #' @param target A `winrpa_element` object.
 #' @param button Mouse button to use when clicking (`"left"`, `"right"`, or
@@ -48,10 +48,20 @@ rpa_click <- function(target,
     }
   }
 
+  scrolled <- tryCatch(
+    {
+      cpp_uia_scroll_into_view(target$ptr)
+      TRUE
+    },
+    error = function(e) FALSE
+  )
+  if (isTRUE(scrolled)) {
+    Sys.sleep(0.03)
+    info <- cpp_uia_element_info(target$ptr)
+  }
   if (info$right <= info$left || info$bottom <= info$top) {
     rlang::abort("Target element has an empty bounding rectangle and cannot be clicked.")
   }
-  try(cpp_uia_scroll_into_view(target$ptr), silent = TRUE)
   cx <- as.integer((info$left + info$right) %/% 2L)
   cy <- as.integer((info$top + info$bottom) %/% 2L)
   cpp_mouse_click(cx, cy, button, clicks_int, TRUE)
@@ -518,4 +528,66 @@ rpa_launch <- function(command,
     system2(command = command, args = args, env = env, wait = wait)
   }
   invisible(status)
+}
+
+#' Focus, Resize, or Close a Desktop Window
+#'
+#' Brings a target window (or UI Automation element exposing a native `HWND`) to
+#' the foreground (`rpa_window_focus()`), or changes its visual state between
+#' maximized, minimized, restored, and closed via UIA `WindowPattern` with a
+#' Win32 `HWND` fallback.
+#'
+#' @param target A `winrpa_element` object representing a window or control.
+#'
+#' @return `rpa_window_focus()`, `rpa_window_maximize()`,
+#'   `rpa_window_minimize()`, and `rpa_window_restore()` invisibly return
+#'   `target` for pipe chaining; `rpa_window_close()` invisibly returns `NULL`.
+#' @export
+#' @examplesIf interactive() && .Platform$OS.type == "windows"
+#' wins <- rpa_windows()
+#' if (nrow(wins) > 0L) {
+#'   w <- rpa_window(pid = wins$pid[1L])
+#'   rpa_window_focus(w)
+#' }
+rpa_window_focus <- function(target) {
+  assert_element(target)
+  rpa_session_check()
+  cpp_uia_window_focus(target$ptr)
+  invisible(target)
+}
+
+#' @rdname rpa_window_focus
+#' @export
+rpa_window_maximize <- function(target) {
+  assert_element(target)
+  rpa_session_check()
+  cpp_uia_window_state(target$ptr, "maximize")
+  invisible(target)
+}
+
+#' @rdname rpa_window_focus
+#' @export
+rpa_window_minimize <- function(target) {
+  assert_element(target)
+  rpa_session_check()
+  cpp_uia_window_state(target$ptr, "minimize")
+  invisible(target)
+}
+
+#' @rdname rpa_window_focus
+#' @export
+rpa_window_restore <- function(target) {
+  assert_element(target)
+  rpa_session_check()
+  cpp_uia_window_state(target$ptr, "restore")
+  invisible(target)
+}
+
+#' @rdname rpa_window_focus
+#' @export
+rpa_window_close <- function(target) {
+  assert_element(target)
+  rpa_session_check()
+  cpp_uia_window_state(target$ptr, "close")
+  invisible(NULL)
 }

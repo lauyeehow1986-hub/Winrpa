@@ -1,6 +1,6 @@
-/* Complete API catalog covering all 44 exported functions + 4 S3 methods in winrpa */
+/* Complete API catalog covering all 49 exported functions + 4 S3 methods in winrpa */
 window.WINRPA_API = [
-  /* ===================== Windows & Selectors (12) ===================== */
+  /* ===================== Windows & Selectors (17) ===================== */
   {
     name: "rpa_launch",
     category: "Windows & Selectors",
@@ -29,39 +29,84 @@ window.WINRPA_API = [
     example: 'win <- rpa_window(class_name = "Notepad")\nrpa_window(title = ".*Notepad$", regex = TRUE)'
   },
   {
+    name: "rpa_window_focus",
+    category: "Windows & Selectors",
+    signature: "rpa_window_focus(target)",
+    summary: "Restores a minimized window if needed, brings its native HWND to the foreground (with AttachThreadInput fallback), and focuses the target element via UIA SetFocus().",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["Window Lifecycle", "Win32 HWND", "Pipe-Friendly"],
+    example: 'win <- rpa_window(class_name = "Notepad")\nrpa_window_focus(win)'
+  },
+  {
+    name: "rpa_window_maximize",
+    category: "Windows & Selectors",
+    signature: "rpa_window_maximize(target)",
+    summary: "Maximizes the target window via UIA WindowPattern::SetWindowVisualState(Maximized) with ShowWindow(SW_MAXIMIZE) HWND fallback.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["WindowPattern", "Win32 HWND", "Pipe-Friendly"],
+    example: 'win |>\n  rpa_window_focus() |>\n  rpa_window_maximize()'
+  },
+  {
+    name: "rpa_window_minimize",
+    category: "Windows & Selectors",
+    signature: "rpa_window_minimize(target)",
+    summary: "Minimizes the target window via UIA WindowPattern with ShowWindow(SW_MINIMIZE) HWND fallback.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["WindowPattern", "Win32 HWND", "Pipe-Friendly"],
+    example: 'rpa_window_minimize(win)'
+  },
+  {
+    name: "rpa_window_restore",
+    category: "Windows & Selectors",
+    signature: "rpa_window_restore(target)",
+    summary: "Restores a maximized or minimized window to normal bounds via UIA WindowPattern with ShowWindow(SW_RESTORE) HWND fallback.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["WindowPattern", "Win32 HWND", "Pipe-Friendly"],
+    example: 'rpa_window_restore(win)'
+  },
+  {
+    name: "rpa_window_close",
+    category: "Windows & Selectors",
+    signature: "rpa_window_close(target)",
+    summary: "Requests graceful window closure via UIA WindowPattern::Close() with PostMessageW(WM_CLOSE) HWND fallback.",
+    returns: "Invisibly returns NULL.",
+    tags: ["WindowPattern", "Win32 HWND"],
+    example: 'rpa_window_close(win)'
+  },
+  {
     name: "rpa_selector",
     category: "Windows & Selectors",
-    signature: "rpa_selector(name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE)",
-    summary: "Constructs a reusable, pipe-friendly S3 selector specification for matching UI Automation controls.",
+    signature: "rpa_selector(name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE, exact = FALSE)",
+    summary: "Constructs a reusable, pipe-friendly S3 selector specification. Setting exact = TRUE matches name and class_name by case-insensitive equality so UIA can filter server-side.",
     returns: "An object of class \"winrpa_selector\".",
-    tags: ["DSL", "Cross-Platform", "Regex"],
-    example: 'save_btn <- rpa_selector(name = "Save", control_type = "Button")\nformat(save_btn)'
+    tags: ["DSL", "Cross-Platform", "Exact/Regex"],
+    example: 'save_btn <- rpa_selector(name = "Save", control_type = "Button", exact = TRUE)\nformat(save_btn)'
   },
   {
     name: "rpa_find",
     category: "Windows & Selectors",
-    signature: "rpa_find(parent = NULL, selector = NULL, name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE)",
-    summary: "Searches the UI Automation subtree beneath parent (or desktop root) and returns the first matching control, failing clearly if none match.",
+    signature: "rpa_find(parent = NULL, selector = NULL, name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE, exact = FALSE, max_depth = NULL)",
+    summary: "Searches the UI Automation subtree beneath parent (or desktop root), pushing control_type, automation_id, and exact = TRUE conditions server-side with a FindFirstBuildCache fast path and optional bounded max_depth BFS.",
     returns: "A \"winrpa_element\" handle for the first match.",
-    tags: ["MTA COM", "UIA", "Pipe-Friendly"],
-    example: 'editor <- tryCatch(\n  rpa_find(win, control_type = "Document"),\n  error = function(e) rpa_find(win, control_type = "Edit")\n)'
+    tags: ["MTA COM", "Server-Side UIA", "Bounded BFS"],
+    example: 'editor <- tryCatch(\n  rpa_find(win, control_type = "Document", max_depth = 4L),\n  error = function(e) rpa_find(win, control_type = "Edit")\n)'
   },
   {
     name: "rpa_find_all",
     category: "Windows & Selectors",
-    signature: "rpa_find_all(parent = NULL, selector = NULL, name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE, max_results = 100L)",
-    summary: "Collects up to max_results matching UI Automation controls under a parent element or the desktop root.",
+    signature: "rpa_find_all(parent = NULL, selector = NULL, name = NULL, automation_id = NULL, control_type = NULL, class_name = NULL, regex = FALSE, exact = FALSE, max_results = 100L, max_depth = NULL)",
+    summary: "Collects up to max_results matching UI Automation controls using server-side property conditions or ControlViewWalker bounded BFS when max_depth is supplied.",
     returns: "A list of \"winrpa_element\" handles.",
-    tags: ["MTA COM", "UIA"],
-    example: 'buttons <- rpa_find_all(win, control_type = "Button", max_results = 25L)\nlength(buttons)'
+    tags: ["MTA COM", "Server-Side UIA", "Bounded BFS"],
+    example: 'buttons <- rpa_find_all(win, control_type = "Button", max_depth = 4L, max_results = 25L)\nlength(buttons)'
   },
   {
     name: "rpa_element_info",
     category: "Windows & Selectors",
     signature: "rpa_element_info(target)",
-    summary: "Retrieves O(1) cached UIA properties (bounds, HWND, PID, control type) and all supported UIA control patterns in a single MTA worker round-trip.",
+    summary: "Retrieves O(1) cached UIA properties (bounds, HWND, PID, control type) and all 9 supported UIA control patterns (including Window) in a single MTA worker round-trip.",
     returns: "A named list: name, automation_id, control_type, class_name, pid, hwnd, left, top, right, bottom, enabled, patterns.",
-    tags: ["MTA COM", "O(1) Cache"],
+    tags: ["MTA COM", "O(1) Cache", "9 Patterns"],
     example: 'info <- rpa_element_info(win)\ninfo[c("name", "class_name", "hwnd", "pid", "patterns")]'
   },
   {
@@ -115,9 +160,9 @@ window.WINRPA_API = [
     name: "rpa_click",
     category: "UI Actions & Tables",
     signature: "rpa_click(target, button = c(\"left\", \"right\", \"middle\"), clicks = 1L, method = c(\"auto\", \"invoke\", \"mouse\"))",
-    summary: "Activates a UI element via UIA InvokePattern in auto/invoke mode, or scrolls into view and injects VirtualDesk-aware mouse clicks at its center.",
+    summary: "Activates a UI element via UIA InvokePattern in auto/invoke mode, or scrolls off-screen controls into view and re-queries the updated bounding rectangle center before dispatching VirtualDesk-aware mouse clicks.",
     returns: "Invisibly returns target for pipe chaining.",
-    tags: ["MTA COM", "SendInput", "Pipe-Friendly"],
+    tags: ["MTA COM", "Post-Scroll Re-Query", "SendInput"],
     example: 'save_btn <- rpa_find(win, name = "Save", control_type = "Button")\nrpa_click(save_btn)'
   },
   {

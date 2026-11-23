@@ -15,13 +15,17 @@
 
 ## Key Features
 
-- **Dedicated MTA COM UI Automation Worker:** Isolates `IUIAutomation` from R's STA GUI thread with O(1) cached property retrieval, bounded `rpa_inspect_tree()` snapshots, regex selectors (`rpa_selector()`), and `rpa_read_table()` grid extraction to `data.frame`.
+- **Dedicated MTA COM UI Automation Worker:** Isolates `IUIAutomation` from R's STA GUI thread with server-side property filtering (`exact = TRUE`, `control_type`, `automation_id`), `FindFirstBuildCache` fast lookup, bounded `max_depth` BFS, `rpa_inspect_tree()`, post-scroll `rpa_click()` coordinate re-query, window lifecycle controls (`rpa_window_focus()`, `rpa_window_maximize()`, `rpa_window_minimize()`, `rpa_window_restore()`, `rpa_window_close()`), and `rpa_read_table()`.
 - **Multi-Mode Input Injection & RAII Chords:** Supports `auto`, `value`, grouped UTF-16 `unicode` surrogate pairs (`>= 2ms` yield for RichEditD2DPT), hardware `scancode`, transactional `paste`, and `secret = TRUE` masking.
 - **Per-Monitor V2 DPI & VirtualDesk Mouse Control:** Handles negative multi-monitor coordinates cleanly via `MOUSEEVENTF_VIRTUALDESK` (`0..65535`) and queries `GetDpiForMonitor()`.
 - **Non-Destructive Clipboard Transactions:** `rpa_with_clipboard()` snapshots and restores clipboard contents on exit even on error, backed by 5×15 ms retry locking (`ClipboardGuard`).
 - **Global Kill-Switch & Low-Level Hook Telemetry:** Registers system-wide `Ctrl+Alt+F12` (`RegisterHotKey`) flipping a lock-free atomic abort flag, plus `WH_KEYBOARD_LL` ring buffer telemetry.
 - **Deterministic Waits, Timeout Dumps & Window Capture:** Polls conditions every `<= 50ms` with abort checks, dumps forensic `.log` + UIA trees on timeout (`options(winrpa.debug_dir = ...)`), and writes 24-bit BMP captures via `PrintWindow(PW_RENDERFULLCONTENT)` / `BitBlt`.
 - **CRAN-Clean & Zero-Hang Lifecycle:** Safe `pkgload::unload()` / reload and clean process exit via `reg.finalizer(..., onexit = TRUE)` with portable non-Windows stubs.
+
+## Web Browsers & Hybrid Workflows
+
+For general CSS/XPath web scraping or background browser DOM automation, Chrome DevTools Protocol packages such as [chromote](https://rstudio.github.io/chromote/) or [selenider](https://ashbythorpe.github.io/selenider/) are the primary toolset. Pair them with **`winrpa`** when workflows cross outside the viewport into native Windows OS dialogs (Open/Save file pickers, OS print prompts, Windows Hello / corporate SSO popups) or automate Win32/WPF/WinUI desktop software directly.
 
 ## Installation
 

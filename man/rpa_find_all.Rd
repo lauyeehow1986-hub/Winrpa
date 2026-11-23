@@ -13,7 +13,9 @@ rpa_find_all(
   control_type = NULL,
   class_name = NULL,
   regex = FALSE,
-  max_results = 100L
+  exact = FALSE,
+  max_results = 100L,
+  max_depth = NULL
 )
 
 rpa_find(
@@ -23,7 +25,9 @@ rpa_find(
   automation_id = NULL,
   control_type = NULL,
   class_name = NULL,
-  regex = FALSE
+  regex = FALSE,
+  exact = FALSE,
+  max_depth = NULL
 )
 }
 \arguments{
@@ -37,7 +41,13 @@ filters used when \code{selector} is \code{NULL}.}
 
 \item{regex}{Logical scalar; treat string filters as regular expressions.}
 
+\item{exact}{Logical scalar; match \code{name} and \code{class_name} by
+case-insensitive equality rather than substring search.}
+
 \item{max_results}{Maximum number of matching elements to return.}
+
+\item{max_depth}{Optional non-negative integer depth cap (\code{0} checks
+\code{parent} only; \code{NULL} searches the full subtree).}
 }
 \value{
 \code{rpa_find_all()} returns a list of \code{"winrpa_element"} objects;
@@ -47,6 +57,9 @@ error if no element matches.
 \description{
 Searches the UI Automation subtree beneath \code{parent} (or the desktop root
 when \code{parent = NULL}) using either a \code{winrpa_selector} or inline criteria.
+Server-side UI Automation property conditions are pushed down automatically
+for \code{control_type}, \code{automation_id}, and \code{exact = TRUE} searches, while
+setting \code{max_depth} bounds traversal via \code{ControlViewWalker}.
 }
 \examples{
 \dontshow{if (interactive() && .Platform$OS.type == "windows") withAutoprint(\{ # examplesIf}

@@ -346,7 +346,7 @@
   }
 
   /* ========================================================================
-     Searchable 48-Entry API Explorer
+     Searchable 53-Entry API Explorer
      ======================================================================== */
   var apiList = Array.isArray(window.WINRPA_API) ? window.WINRPA_API : [];
   var apiSearch = document.getElementById("api-search");
