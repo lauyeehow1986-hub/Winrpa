@@ -159,7 +159,6 @@ class MtaComWorker {
   template <typename Fn>
   auto submit(Fn&& fn) -> decltype(fn(std::declval<IUIAutomation*>())) {
     using Ret = decltype(fn(std::declval<IUIAutomation*>()));
-    ensure_started();
     auto task = std::make_shared<std::packaged_task<Ret()>>(
         [this, f = std::forward<Fn>(fn)]() mutable {
           return f(ensure_uia());
@@ -167,9 +166,10 @@ class MtaComWorker {
     std::future<Ret> fut = task->get_future();
     {
       std::lock_guard<std::mutex> lock(mu_);
-      if (shut_down_) {
-        throw std::runtime_error("winrpa MTA COM worker is shut down.");
+      if (destroyed_) {
+        throw std::runtime_error("winrpa MTA COM worker has been destroyed.");
       }
+      ensure_started_locked();
       tasks_.push([task]() { (*task)(); });
     }
     cv_.notify_one();
@@ -183,7 +183,7 @@ class MtaComWorker {
 
  private:
   MtaComWorker() = default;
-  void ensure_started();
+  void ensure_started_locked();
   IUIAutomation* ensure_uia();
   void worker_loop();
 
@@ -194,7 +194,7 @@ class MtaComWorker {
   IUIAutomation* uia_ = nullptr;
   bool started_ = false;
   bool stop_ = false;
-  bool shut_down_ = false;
+  bool destroyed_ = false;
 };
 
 struct UiaElementHandle {

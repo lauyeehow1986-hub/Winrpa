@@ -4,6 +4,17 @@
 
 .winrpa_env <- new.env(parent = emptyenv())
 
+.onLoad <- function(libname, pkgname) {
+  reg.finalizer(
+    .winrpa_env,
+    function(e) {
+      try(cpp_shutdown_runtime(), silent = TRUE)
+    },
+    onexit = TRUE
+  )
+  invisible(NULL)
+}
+
 .onUnload <- function(libpath) {
   try(cpp_shutdown_runtime(), silent = TRUE)
   invisible(NULL)

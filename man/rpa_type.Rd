@@ -7,8 +7,8 @@
 rpa_type(
   target,
   text,
-  mode = c("auto", "value", "unicode", "scancode"),
-  delay_ms = 0L,
+  mode = c("auto", "value", "unicode", "scancode", "paste"),
+  delay_ms = 5L,
   secret = FALSE
 )
 }
@@ -17,21 +17,24 @@ rpa_type(
 
 \item{text}{Character scalar to type.}
 
-\item{mode}{Input strategy: \code{"auto"}, \code{"value"}, \code{"unicode"}, or \code{"scancode"}.}
+\item{mode}{Input strategy: \code{"auto"}, \code{"value"}, \code{"unicode"}, \code{"scancode"},
+or \code{"paste"}.}
 
 \item{delay_ms}{Non-negative integer delay in milliseconds between
-keystrokes.}
+keystrokes (defaults to \code{5L} to prevent modern WinUI/RichEdit input queue
+drops).}
 
 \item{secret}{Logical scalar; when \code{TRUE}, masks text from any error
-diagnostics.}
+diagnostics and forbids \code{mode = "paste"}.}
 }
 \value{
 Invisibly returns \code{target} for pipe chaining.
 }
 \description{
-Sets control text via UI Automation \code{ValuePattern} or sends keyboard input
-using Unicode or hardware scan codes. Secret text is never echoed in error
-messages.
+Sets control text via UI Automation \code{ValuePattern}, sends keyboard input
+using Unicode (\code{KEYEVENTF_UNICODE}) or hardware scan codes
+(\code{KEYEVENTF_SCANCODE}), or pastes via the clipboard transaction wrapper
+(\code{mode = "paste"}). Secret text is never echoed in error messages.
 }
 \examples{
 \dontshow{if (interactive() && .Platform$OS.type == "windows") withAutoprint(\{ # examplesIf}

@@ -75,3 +75,14 @@ test_that("Pure C++ 24-bit BMP encoder writes valid headers and row padding", {
   expect_equal(sum(width_bytes * c(1L, 256L, 65536L, 16777216L)), 5L)
   expect_equal(sum(height_bytes * c(1L, 256L, 65536L, 16777216L)), 3L)
 })
+
+test_that("MtaComWorker restarts cleanly after cpp_shutdown_runtime()", {
+  skip_on_os(c("mac", "linux", "solaris"))
+  df1 <- winrpa:::cpp_uia_list_windows()
+  expect_s3_class(df1, "data.frame")
+
+  winrpa:::cpp_shutdown_runtime()
+
+  df2 <- winrpa:::cpp_uia_list_windows()
+  expect_s3_class(df2, "data.frame")
+})

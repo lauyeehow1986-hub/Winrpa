@@ -143,7 +143,15 @@ class RuntimeHookThread {
 
   ~RuntimeHookThread() {
     try {
-      shutdown();
+      std::lock_guard<std::mutex> lock(mu_);
+      if (running_) {
+        PostThreadMessageW(tid_, WM_QUIT, 0U, 0);
+        if (thread_.joinable()) {
+          thread_.detach();
+        }
+        running_ = false;
+        tid_ = 0U;
+      }
     } catch (...) {
     }
   }

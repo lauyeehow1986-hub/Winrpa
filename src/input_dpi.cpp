@@ -181,6 +181,44 @@ void emit_unicode_char(wchar_t ch) {
   }
 }
 
+inline bool is_high_surrogate_code_unit(wchar_t ch) noexcept {
+  return ch >= 0xD800 && ch <= 0xDBFF;
+}
+
+inline bool is_low_surrogate_code_unit(wchar_t ch) noexcept {
+  return ch >= 0xDC00 && ch <= 0xDFFF;
+}
+
+void emit_unicode_surrogate_pair(wchar_t high, wchar_t low) {
+  INPUT inputs[4]{};
+  inputs[0].type = INPUT_KEYBOARD;
+  inputs[0].ki.wVk = 0U;
+  inputs[0].ki.wScan = static_cast<WORD>(high);
+  inputs[0].ki.dwFlags = KEYEVENTF_UNICODE;
+
+  inputs[1].type = INPUT_KEYBOARD;
+  inputs[1].ki.wVk = 0U;
+  inputs[1].ki.wScan = static_cast<WORD>(low);
+  inputs[1].ki.dwFlags = KEYEVENTF_UNICODE;
+
+  inputs[2].type = INPUT_KEYBOARD;
+  inputs[2].ki.wVk = 0U;
+  inputs[2].ki.wScan = static_cast<WORD>(high);
+  inputs[2].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+
+  inputs[3].type = INPUT_KEYBOARD;
+  inputs[3].ki.wVk = 0U;
+  inputs[3].ki.wScan = static_cast<WORD>(low);
+  inputs[3].ki.dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP;
+
+  const UINT sent = SendInput(4U, inputs, sizeof(INPUT));
+  if (sent != 4U) {
+    cpp11::stop(
+        "SendInput(KEYEVENTF_UNICODE surrogate) failed (Win32 error %lu).",
+        GetLastError());
+  }
+}
+
 bool is_modifier_vk(std::uint16_t vk) {
   switch (vk) {
     case VK_SHIFT:
@@ -555,6 +593,7 @@ void cpp_type_text(std::string text, std::string mode, int delay_ms) {
 
   const std::wstring wide = winrpa::utf8_to_wide(text);
   const HKL layout = GetKeyboardLayout(0);
+  const int step_delay = delay_ms > 0 ? delay_ms : (!use_scancode ? 2 : 0);
 
   for (std::size_t i = 0; i < wide.size(); ++i) {
     if ((i % 16U) == 0U) {
@@ -562,12 +601,20 @@ void cpp_type_text(std::string text, std::string mode, int delay_ms) {
     }
     const wchar_t ch = wide[i];
 
-    if (ch == L'\n') {
+    if (ch == L'\r' && (i + 1U < wide.size()) && wide[i + 1U] == L'\n') {
+      continue;
+    }
+    if (ch == L'\n' || ch == L'\r') {
       winrpa::emit_vk_event(VK_RETURN, false, use_scancode);
       winrpa::emit_vk_event(VK_RETURN, true, use_scancode);
     } else if (ch == L'\t') {
       winrpa::emit_vk_event(VK_TAB, false, use_scancode);
       winrpa::emit_vk_event(VK_TAB, true, use_scancode);
+    } else if (winrpa::is_high_surrogate_code_unit(ch) &&
+               (i + 1U < wide.size()) &&
+               winrpa::is_low_surrogate_code_unit(wide[i + 1U])) {
+      winrpa::emit_unicode_surrogate_pair(ch, wide[i + 1U]);
+      ++i;
     } else if (!use_scancode) {
       winrpa::emit_unicode_char(ch);
     } else {
@@ -598,9 +645,12 @@ void cpp_type_text(std::string text, std::string mode, int delay_ms) {
       }
     }
 
-    if (delay_ms > 0) {
-      winrpa::interruptible_sleep_ms(delay_ms);
+    if (step_delay > 0) {
+      winrpa::interruptible_sleep_ms(step_delay);
     }
+  }
+  if (!wide.empty()) {
+    winrpa::interruptible_sleep_ms(20);
   }
 #else
   (void)text;

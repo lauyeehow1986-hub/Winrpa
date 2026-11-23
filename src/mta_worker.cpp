@@ -18,11 +18,7 @@ MtaComWorker& MtaComWorker::instance() {
   return worker;
 }
 
-void MtaComWorker::ensure_started() {
-  std::lock_guard<std::mutex> lock(mu_);
-  if (shut_down_) {
-    throw std::runtime_error("winrpa MTA COM worker is shut down.");
-  }
+void MtaComWorker::ensure_started_locked() {
   if (!started_) {
     stop_ = false;
     thread_ = std::thread(&MtaComWorker::worker_loop, this);
@@ -73,7 +69,7 @@ void MtaComWorker::worker_loop() {
 
 void MtaComWorker::post(std::function<void()> fn) {
   std::lock_guard<std::mutex> lock(mu_);
-  if (shut_down_ || !started_) {
+  if (destroyed_ || !started_) {
     return;
   }
   tasks_.push(std::move(fn));
@@ -84,7 +80,6 @@ void MtaComWorker::shutdown() {
   std::thread to_join;
   {
     std::lock_guard<std::mutex> lock(mu_);
-    shut_down_ = true;
     if (!started_) {
       return;
     }
@@ -100,7 +95,16 @@ void MtaComWorker::shutdown() {
 
 MtaComWorker::~MtaComWorker() {
   try {
-    shutdown();
+    std::lock_guard<std::mutex> lock(mu_);
+    destroyed_ = true;
+    if (started_) {
+      stop_ = true;
+      cv_.notify_all();
+      if (thread_.joinable()) {
+        thread_.detach();
+      }
+      started_ = false;
+    }
   } catch (...) {
   }
 }

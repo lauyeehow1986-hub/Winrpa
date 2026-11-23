@@ -87,3 +87,34 @@ test_that("Input and secret validation errors never leak secret strings", {
   expect_error(rpa_key_chord(c("ctrl", "")), "non-empty")
   expect_error(rpa_click("not-an-element"), "winrpa_element")
 })
+
+test_that("rpa_launch defaults to visible launch and validates arguments", {
+  fmls <- formals(rpa_launch)
+  expect_identical(fmls$wait, FALSE)
+  expect_identical(fmls$minimized, FALSE)
+  expect_identical(fmls$invisible, FALSE)
+
+  expect_error(rpa_launch(""), "command")
+  expect_error(rpa_launch(NA_character_), "command")
+  expect_error(rpa_launch(123), "command")
+  expect_error(rpa_launch("notepad.exe", args = c("a", NA_character_)), "args")
+  expect_error(rpa_launch("notepad.exe", wait = "no"), "wait")
+  expect_error(rpa_launch("notepad.exe", minimized = NA), "minimized")
+  expect_error(rpa_launch("notepad.exe", invisible = 1L), "invisible")
+  expect_error(rpa_launch("notepad.exe", env = 123), "env")
+})
+
+test_that("rpa_type defaults to 5ms pacing, supports paste mode, and blocks paste with secret", {
+  fmls <- formals(rpa_type)
+  expect_identical(fmls$delay_ms, 5L)
+  expect_true("paste" %in% eval(fmls$mode))
+
+  fake_elem <- structure(list(ptr = NULL), class = "winrpa_element")
+  err <- tryCatch(
+    rpa_type(fake_elem, "TopSecret!42", mode = "paste", secret = TRUE),
+    error = function(e) conditionMessage(e)
+  )
+  expect_match(err, "paste")
+  expect_match(err, "secret")
+  expect_false(grepl("TopSecret!42", err, fixed = TRUE))
+})

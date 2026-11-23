@@ -60,17 +60,20 @@ rpa_click <- function(target,
 
 #' Type Text Into a UI Element
 #'
-#' Sets control text via UI Automation `ValuePattern` or sends keyboard input
-#' using Unicode or hardware scan codes. Secret text is never echoed in error
-#' messages.
+#' Sets control text via UI Automation `ValuePattern`, sends keyboard input
+#' using Unicode (`KEYEVENTF_UNICODE`) or hardware scan codes
+#' (`KEYEVENTF_SCANCODE`), or pastes via the clipboard transaction wrapper
+#' (`mode = "paste"`). Secret text is never echoed in error messages.
 #'
 #' @param target A `winrpa_element` object.
 #' @param text Character scalar to type.
-#' @param mode Input strategy: `"auto"`, `"value"`, `"unicode"`, or `"scancode"`.
+#' @param mode Input strategy: `"auto"`, `"value"`, `"unicode"`, `"scancode"`,
+#'   or `"paste"`.
 #' @param delay_ms Non-negative integer delay in milliseconds between
-#'   keystrokes.
+#'   keystrokes (defaults to `5L` to prevent modern WinUI/RichEdit input queue
+#'   drops).
 #' @param secret Logical scalar; when `TRUE`, masks text from any error
-#'   diagnostics.
+#'   diagnostics and forbids `mode = "paste"`.
 #'
 #' @return Invisibly returns `target` for pipe chaining.
 #' @export
@@ -79,8 +82,8 @@ rpa_click <- function(target,
 #' nrow(wins)
 rpa_type <- function(target,
                      text,
-                     mode = c("auto", "value", "unicode", "scancode"),
-                     delay_ms = 0L,
+                     mode = c("auto", "value", "unicode", "scancode", "paste"),
+                     delay_ms = 5L,
                      secret = FALSE) {
   assert_element(target)
   if (!is.character(text) || length(text) != 1L || is.na(text)) {
@@ -93,12 +96,32 @@ rpa_type <- function(target,
   if (!is.logical(secret) || length(secret) != 1L || is.na(secret)) {
     rlang::abort("'secret' must be a single non-NA logical value.")
   }
+  if (mode == "paste" && isTRUE(secret)) {
+    rlang::abort(
+      paste0(
+        "mode = 'paste' is not permitted when secret = TRUE ",
+        "to avoid exposing secrets to clipboard history."
+      )
+    )
+  }
 
   rpa_session_check()
 
   run_type <- function() {
     if (mode == "value") {
       cpp_uia_set_value(target$ptr, text)
+      return(invisible(target))
+    }
+    if (mode == "paste") {
+      cpp_uia_set_focus(target$ptr)
+      Sys.sleep(0.05)
+      rpa_with_clipboard(
+        {
+          rpa_key_chord(c("ctrl", "v"))
+          Sys.sleep(0.05)
+        },
+        text = text
+      )
       return(invisible(target))
     }
     if (mode == "auto") {
@@ -116,10 +139,12 @@ rpa_type <- function(target,
         }
       }
       cpp_uia_set_focus(target$ptr)
+      Sys.sleep(0.05)
       cpp_type_text(text, "unicode", as.integer(delay_ms))
       return(invisible(target))
     }
     cpp_uia_set_focus(target$ptr)
+    Sys.sleep(0.05)
     cpp_type_text(text, mode, as.integer(delay_ms))
     invisible(target)
   }
@@ -432,4 +457,65 @@ rpa_hook_stop <- function() {
 rpa_hook_drain <- function() {
   rpa_session_check()
   cpp_hook_drain()
+}
+
+#' Launch a Desktop Application Visibly
+#'
+#' Starts a desktop application without hiding its main window (unlike
+#' `base::system2()`, which defaults to `invisible = TRUE` on Windows and hides
+#' GUI windows such as Windows 11 Notepad).
+#'
+#' @param command Character scalar executable name or path.
+#' @param args Character vector of command-line arguments.
+#' @param wait Logical scalar; whether to wait for the launched process to
+#'   exit.
+#' @param minimized Logical scalar; whether to launch the window minimized on
+#'   Windows.
+#' @param invisible Logical scalar; whether to launch without showing a window on
+#'   Windows (defaults to `FALSE`).
+#' @param env Character vector of `NAME=VALUE` environment overrides.
+#'
+#' @return Invisibly returns the integer status code from `base::system2()`.
+#' @export
+#' @examplesIf interactive() && .Platform$OS.type == "windows"
+#' rpa_launch("notepad.exe")
+rpa_launch <- function(command,
+                       args = character(),
+                       wait = FALSE,
+                       minimized = FALSE,
+                       invisible = FALSE,
+                       env = character()) {
+  if (!is.character(command) || length(command) != 1L || is.na(command) || !nzchar(command)) {
+    rlang::abort("'command' must be a single non-empty character string.")
+  }
+  if (!is.character(args) || anyNA(args)) {
+    rlang::abort("'args' must be a character vector with no NA values.")
+  }
+  if (!is.logical(wait) || length(wait) != 1L || is.na(wait)) {
+    rlang::abort("'wait' must be a single non-NA logical value.")
+  }
+  if (!is.logical(minimized) || length(minimized) != 1L || is.na(minimized)) {
+    rlang::abort("'minimized' must be a single non-NA logical value.")
+  }
+  if (!is.logical(invisible) || length(invisible) != 1L || is.na(invisible)) {
+    rlang::abort("'invisible' must be a single non-NA logical value.")
+  }
+  if (!is.character(env) || anyNA(env)) {
+    rlang::abort("'env' must be a character vector with no NA values.")
+  }
+
+  rpa_session_check()
+  status <- if (.Platform$OS.type == "windows") {
+    system2(
+      command = command,
+      args = args,
+      env = env,
+      wait = wait,
+      minimized = minimized,
+      invisible = invisible
+    )
+  } else {
+    system2(command = command, args = args, env = env, wait = wait)
+  }
+  invisible(status)
 }
