@@ -45,21 +45,20 @@
         <div class="hero-grid">
           <div>
             <div class="badge-row">
-              <span class="pill pill-indigo">C++17 + cpp11 Native</span>
-              <span class="pill pill-sky">49 Functions + 4 S3 Methods</span>
-              <span class="pill pill-green">102 Tests PASS | CRAN Check 0/0/0</span>
+              <span class="pill pill-indigo">C++17 + WinHTTP CDP</span>
+              <span class="pill pill-sky">67 Functions + 8 S3 Methods</span>
+              <span class="pill pill-green">164 Tests PASS | CRAN Check 0/0/0</span>
             </div>
 
             <h1>
-              <span class="gradient-text">Native Desktop RPA for R.</span><br />
+              <span class="gradient-text">Native Desktop &amp; Browser RPA for R.</span><br />
               Zero Python. Zero Slow Bridges.
             </h1>
 
             <p class="hero-lead">
-              <strong>winrpa</strong> binds directly to Microsoft UI Automation on a dedicated
-              Multi-Threaded Apartment (MTA) COM worker alongside Per-Monitor V2 DPI
-              <code>SendInput</code>, transactional clipboards, <code>Ctrl+Alt+F12</code> emergency abort guards,
-              and 24-bit window screenshots.
+              <strong>winrpa</strong> pairs dedicated Multi-Threaded Apartment (MTA) Microsoft UI
+              Automation, Per-Monitor V2 DPI <code>SendInput</code>, background <code>PostMessageW</code>
+              messaging, and a native WinHTTP WebSocket CDP browser engine (CSS/XPath, XHR waits, headless Edge/Chrome) in pure C++17.
             </p>
 
             <div class="install-box">
@@ -68,7 +67,7 @@
             </div>
 
             <div class="cta-row">
-              <a class="btn-primary" href="#api">Explore All 53 API Symbols</a>
+              <a class="btn-primary" href="#api">Explore All 75 API Symbols</a>
               <a class="btn-secondary" href="#screenshots">View Screenshots &amp; Live Output</a>
               <a class="btn-secondary" href="https://github.com/lauyeehow1986-hub/Winrpa" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
             </div>
@@ -83,41 +82,42 @@
               </div>
               <pre><code class="lang-r" id="hero-code">library(winrpa)
 
-# Launch Notepad visibly & bring window to foreground
+# Desktop UIA + Win32 Window Lifecycle
 rpa_launch("notepad.exe")
 win <- rpa_wait_for(
   function() tryCatch(rpa_window(class_name = "Notepad"), error = function(e) NULL),
-  timeout = 5, interval = 0.05, label = "Notepad window"
+  timeout = 5, label = "Notepad"
 ) |> rpa_window_focus()
 
-# Server-side UIA lookup with bounded depth & multi-mode input
-editor <- rpa_find(win, control_type = "Document", max_depth = 4L)
-editor |>
-  rpa_type("Hello from winrpa! (Unicode: café 日本語)\n", mode = "unicode") |>
-  rpa_type("Hardware scancode test 123\n", mode = "scancode", delay_ms = 5L)
+rpa_find(win, control_type = "Document", max_depth = 4L) |>
+  rpa_type("Hello from winrpa! (Unicode: café 日本語)\n", mode = "unicode")
 
-# Capture crisp 24-bit BMP without stealing focus
-rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
+# Headless Edge/Chrome CDP (CSS, XPath &amp; Network-Idle)
+sess <- rpa_web_launch(headless = TRUE)
+rpa_web_goto(sess, "https://example.org", wait = "load")
+rpa_web_wait_network_idle(sess, idle_ms = 300L)
+rpa_web_screenshot(sess, "page.png")
+rpa_web_close(sess)</code></pre>
             </div>
           </div>
         </div>
 
         <div class="metrics-strip">
           <div class="metric-card">
-            <div class="metric-val mono">49 + 4 S3</div>
+            <div class="metric-val mono">67 + 8 S3</div>
             <div class="metric-lbl">Exported functions &amp; S3 print/format methods</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val mono">9 Patterns</div>
-            <div class="metric-lbl">Invoke, Value, Toggle, Selection, Expand, Scroll, Grid, Table &amp; Window</div>
+            <div class="metric-val mono">UIA + CDP</div>
+            <div class="metric-lbl">9 UIA desktop patterns + native WinHTTP WebSocket CDP engine</div>
           </div>
           <div class="metric-card">
-            <div class="metric-val mono">102 / 0 / 0</div>
+            <div class="metric-val mono">164 / 0 / 0</div>
             <div class="metric-lbl">testthat assertions pass; R CMD check 0 err / 0 warn / 0 note</div>
           </div>
           <div class="metric-card">
             <div class="metric-val mono">0-Hang DLL</div>
-            <div class="metric-lbl">Clean <code>pkgload::unload()</code>, reload &amp; process exit</div>
+            <div class="metric-lbl">Clean <code>pkgload::unload()</code>, browser teardown &amp; process exit</div>
           </div>
         </div>
       </div>
@@ -135,12 +135,12 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
         <div class="features-grid">
           <article class="feature-card">
             <div class="feature-icon mono">01</div>
-            <h3>MTA COM UI Automation</h3>
-            <p>Dedicated <code>COINIT_MULTITHREADED</code> worker pushes <code>exact = TRUE</code> / <code>ControlType</code> / <code>AutomationId</code> predicates server-side, supports bounded <code>max_depth</code> BFS, window lifecycle helpers (<code>rpa_window_focus()</code>, <code>rpa_window_maximize()</code>), post-scroll <code>rpa_click()</code> re-query, and <code>rpa_read_table()</code>.</p>
+            <h3>UIA Desktop &amp; Background Input</h3>
+            <p>Dedicated MTA COM worker pushes <code>exact = TRUE</code>/<code>ControlType</code>/<code>AutomationId</code> predicates server-side, plus <code>rpa_window_focus()</code>, post-scroll <code>rpa_click()</code>, <code>rpa_read_table()</code>, and non-stealing background <code>rpa_post_click()</code> / <code>rpa_post_text()</code>.</p>
             <div class="tag-list">
               <span class="tag">Server-Side UIA</span>
               <span class="tag">rpa_window_focus</span>
-              <span class="tag">Post-Scroll Click</span>
+              <span class="tag">rpa_post_click</span>
             </div>
           </article>
 
@@ -187,30 +187,31 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
 
           <article class="feature-card">
             <div class="feature-icon mono">06</div>
-            <h3>Deterministic Waits &amp; Dumps</h3>
-            <p><code>rpa_wait_for()</code>, <code>rpa_wait_until_gone()</code>, and <code>rpa_wait_until_enabled()</code> poll at &lt;=50ms chunks with abort checks. Setting <code>options(winrpa.debug_dir = ...)</code> automatically writes <code>.log</code> + UIA tree + <code>.bmp</code> snapshots on timeout.</p>
+            <h3>DOM, Network-Idle &amp; Debug Waits</h3>
+            <p><code>rpa_wait_for()</code>, <code>rpa_web_wait_load()</code>, and <code>rpa_web_wait_network_idle()</code> poll DOM readiness and XHR/fetch queues with abort checks. <code>options(winrpa.debug_dir = ...)</code> dumps <code>.log</code> + UIA tree + <code>.bmp</code> snapshots on timeout.</p>
             <div class="tag-list">
-              <span class="tag">&lt;=50ms Abort Check</span>
+              <span class="tag">XHR/Fetch Idle</span>
               <span class="tag">winrpa.debug_dir</span>
             </div>
           </article>
 
           <article class="feature-card">
             <div class="feature-icon mono">07</div>
-            <h3>Window &amp; Desktop Capture</h3>
-            <p><code>rpa_screenshot()</code> captures occluded windows via <code>PrintWindow(..., PW_RENDERFULLCONTENT)</code> with automatic <code>BitBlt</code> fallback and writes standard 24-bit BMP images directly in C++ with zero external image library dependencies.</p>
+            <h3>Headless Web CDP &amp; Captures</h3>
+            <p>Native WinHTTP WebSocket CDP automates Edge/Chrome with CSS &amp; XPath selectors (<code>rpa_web_find()</code>), headless uploads (<code>rpa_web_set_files()</code>), full-page PNGs (<code>rpa_web_screenshot()</code>), UIA dialog bridge, plus desktop 24-bit BMP captures.</p>
             <div class="tag-list">
-              <span class="tag">PW_RENDERFULLCONTENT</span>
-              <span class="tag">24-bit BMP</span>
+              <span class="tag">CSS / XPath</span>
+              <span class="tag">WinHTTP CDP</span>
+              <span class="tag">PNG + BMP</span>
             </div>
           </article>
 
           <article class="feature-card">
             <div class="feature-icon mono">08</div>
             <h3>CRAN Six-Sigma Engineering</h3>
-            <p>Pure ASCII R sources, strict <code>-Wall -Wextra -Wconversion</code> clean compilation, non-Windows stub errors for cross-OS CRAN builds, recoverable MTA worker restarts, and <code>reg.finalizer(..., onexit = TRUE)</code> clean process teardown.</p>
+            <p>Zero new R dependencies (pure C++17 JSON/Base64 + <code>-lwinhttp</code>), strict <code>-Wall -Wextra -Wconversion</code> clean build, non-Windows stubs for CRAN, and <code>reg.finalizer(..., onexit = TRUE)</code> closing COM threads and child browsers cleanly.</p>
             <div class="tag-list">
-              <span class="tag">Cross-Platform Stubs</span>
+              <span class="tag">Zero R Deps</span>
               <span class="tag">Zero-Hang Exit</span>
             </div>
           </article>
@@ -413,7 +414,7 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
         <div class="section-header">
           <span class="eyebrow">API Reference</span>
           <h2>Searchable Function &amp; S3 Method Explorer</h2>
-          <p>Browse every single symbol exported in <code>NAMESPACE</code> — all 49 functions and 4 S3 methods with full signatures, return schemas, and copyable R examples.</p>
+          <p>Browse every single symbol exported in <code>NAMESPACE</code> — all 67 functions and 8 S3 methods across Desktop UIA, Background Messaging, and Web CDP with full signatures and copyable R examples.</p>
         </div>
 
         <div class="api-controls">
@@ -443,8 +444,8 @@ rpa_screenshot(win, path = "notepad_capture.bmp")</code></pre>
             <table class="check-table">
               <tbody>
                 <tr>
-                  <td><code>devtools::test()</code> suite</td>
-                  <td class="status-ok">102 PASS / 0 FAIL / 0 WARN</td>
+                  <td><code>devtools::test()</code> suite (incl. live headless Edge CDP)</td>
+                  <td class="status-ok">164 PASS / 0 FAIL / 0 WARN</td>
                 </tr>
                 <tr>
                   <td><code>R CMD check --no-manual</code></td>

@@ -298,6 +298,29 @@
         'unloadNamespace("winrpa")\n' +
         'library(winrpa)\n' +
         'nrow(rpa_windows())'
+    },
+    {
+      id: "webcdp",
+      label: "7. Headless Web CDP",
+      title: "CSS/XPath, Network-Idle Waits, Upload & PNG (Headless)",
+      summary: "Automate Edge or Chrome directly via native C++17 WinHTTP WebSockets without hijacking the mouse or requiring an unlocked screen, and bridge to UIA when OS dialogs appear.",
+      bullets: [
+        "CSS & XPath selectors with trusted Input.dispatchMouseEvent and Input.insertText.",
+        "Tracks Page.domContentEventFired, Page.loadEventFired, and in-flight XHR/fetch requests.",
+        "Populates <input type='file'> headlessly and writes lossless PNGs via pure C++ Base64 decode."
+      ],
+      filename: "workflow_web_cdp.R",
+      code:
+        'library(winrpa)\n\n' +
+        '# Runs cleanly in background headless mode with zero extra R deps\n' +
+        'sess <- rpa_web_launch(browser = "auto", headless = TRUE)\n' +
+        'on.exit(rpa_web_close(sess), add = TRUE)\n\n' +
+        'rpa_web_goto(sess, "https://example.org", wait = "load")\n' +
+        'rpa_web_wait_network_idle(sess, idle_ms = 500L, timeout = 15)\n\n' +
+        'rpa_web_type(sess, "winrpa CDP", css = "#search-input", clear = TRUE)\n' +
+        'rpa_web_click(sess, xpath = "//button[@type=\'submit\']")\n\n' +
+        'heading <- rpa_web_text(sess, css = "h1")\n' +
+        'rpa_web_screenshot(sess, path = "page.png", full_page = TRUE)'
     }
   ];
 
@@ -346,7 +369,7 @@
   }
 
   /* ========================================================================
-     Searchable 53-Entry API Explorer
+     Searchable 75-Entry API Explorer
      ======================================================================== */
   var apiList = Array.isArray(window.WINRPA_API) ? window.WINRPA_API : [];
   var apiSearch = document.getElementById("api-search");

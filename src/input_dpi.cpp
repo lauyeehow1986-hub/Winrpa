@@ -766,3 +766,107 @@ int cpp_clipboard_sequence_number() {
   return 0;
 #endif
 }
+
+#ifdef _WIN32
+namespace {
+
+HWND parse_valid_hwnd_hex(const std::string& hwnd_hex) {
+  if (hwnd_hex.empty()) {
+    cpp11::stop("Target element does not expose a native HWND for background messaging.");
+  }
+  char* end_ptr = nullptr;
+  const unsigned long long raw = std::strtoull(hwnd_hex.c_str(), &end_ptr, 16);
+  if (end_ptr == hwnd_hex.c_str() || *end_ptr != '\0' || raw == 0ULL) {
+    cpp11::stop("Invalid hexadecimal HWND string: '%s'.", hwnd_hex.c_str());
+  }
+  HWND hwnd = reinterpret_cast<HWND>(static_cast<std::uintptr_t>(raw));
+  if (!IsWindow(hwnd)) {
+    cpp11::stop("Target HWND %s is no longer a valid window.", hwnd_hex.c_str());
+  }
+  return hwnd;
+}
+
+}  // namespace
+#endif
+
+[[cpp11::register]]
+void cpp_post_click(
+    std::string hwnd_hex,
+    int x,
+    int y,
+    std::string button,
+    bool use_screen_coords) {
+#ifdef _WIN32
+  winrpa::check_abort_or_interrupt();
+  HWND hwnd = parse_valid_hwnd_hex(hwnd_hex);
+  POINT pt{x, y};
+  if (use_screen_coords) {
+    if (!ScreenToClient(hwnd, &pt)) {
+      cpp11::stop("ScreenToClient failed for HWND %s.", hwnd_hex.c_str());
+    }
+  } else if (x == 0 && y == 0) {
+    RECT rc{};
+    if (GetClientRect(hwnd, &rc)) {
+      pt.x = (rc.left + rc.right) / 2;
+      pt.y = (rc.top + rc.bottom) / 2;
+    }
+  }
+
+  UINT down_msg = WM_LBUTTONDOWN;
+  UINT up_msg = WM_LBUTTONUP;
+  WPARAM down_wp = MK_LBUTTON;
+  if (button == "right") {
+    down_msg = WM_RBUTTONDOWN;
+    up_msg = WM_RBUTTONUP;
+    down_wp = MK_RBUTTON;
+  } else if (button != "left") {
+    cpp11::stop("Unsupported background click button '%s'. Use 'left' or 'right'.", button.c_str());
+  }
+
+  const std::uint32_t ux = static_cast<std::uint32_t>(static_cast<std::int16_t>(pt.x)) & 0xFFFFU;
+  const std::uint32_t uy = static_cast<std::uint32_t>(static_cast<std::int16_t>(pt.y)) & 0xFFFFU;
+  const LPARAM lparam = static_cast<LPARAM>(ux | (uy << 16U));
+
+  if (!PostMessageW(hwnd, down_msg, down_wp, lparam)) {
+    cpp11::stop("PostMessageW(down) failed (Win32 error %lu).", GetLastError());
+  }
+  Sleep(10U);
+  if (!PostMessageW(hwnd, up_msg, static_cast<WPARAM>(0), lparam)) {
+    cpp11::stop("PostMessageW(up) failed (Win32 error %lu).", GetLastError());
+  }
+#else
+  (void)hwnd_hex;
+  (void)x;
+  (void)y;
+  (void)button;
+  (void)use_screen_coords;
+  winrpa::require_windows_or_stop("cpp_post_click()");
+#endif
+}
+
+[[cpp11::register]]
+void cpp_post_text(std::string hwnd_hex, std::string text) {
+#ifdef _WIN32
+  winrpa::check_abort_or_interrupt();
+  HWND hwnd = parse_valid_hwnd_hex(hwnd_hex);
+  const std::wstring wide = winrpa::utf8_to_wide(text);
+  for (std::size_t i = 0U; i < wide.size(); ++i) {
+    winrpa::check_abort_or_interrupt();
+    wchar_t ch = wide[i];
+    if (ch == L'\r' && (i + 1U < wide.size()) && wide[i + 1U] == L'\n') {
+      continue;
+    }
+    if (ch == L'\n') {
+      ch = L'\r';
+    }
+    if (!PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(ch), static_cast<LPARAM>(1))) {
+      cpp11::stop("PostMessageW(WM_CHAR) failed (Win32 error %lu).", GetLastError());
+    }
+    Sleep(2U);
+  }
+#else
+  (void)hwnd_hex;
+  (void)text;
+  winrpa::require_windows_or_stop("cpp_post_text()");
+#endif
+}

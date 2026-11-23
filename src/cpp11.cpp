@@ -47,6 +47,77 @@ extern "C" SEXP _winrpa_cpp_hook_drain() {
     return cpp11::as_sexp(cpp_hook_drain());
   END_CPP11
 }
+// cdp_client.cpp
+cpp11::writable::list cpp_cdp_json_selftest();
+extern "C" SEXP _winrpa_cpp_cdp_json_selftest() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_json_selftest());
+  END_CPP11
+}
+// cdp_client.cpp
+cpp11::writable::raws cpp_cdp_base64_selftest(std::string b64);
+extern "C" SEXP _winrpa_cpp_cdp_base64_selftest(SEXP b64) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_base64_selftest(cpp11::as_cpp<cpp11::decay_t<std::string>>(b64)));
+  END_CPP11
+}
+// cdp_client.cpp
+std::string cpp_cdp_find_browser(std::string preference);
+extern "C" SEXP _winrpa_cpp_cdp_find_browser(SEXP preference) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_find_browser(cpp11::as_cpp<cpp11::decay_t<std::string>>(preference)));
+  END_CPP11
+}
+// cdp_client.cpp
+cpp11::writable::list cpp_cdp_launch(std::string browser, bool headless, std::string url, int port, cpp11::strings extra_args, int timeout_ms);
+extern "C" SEXP _winrpa_cpp_cdp_launch(SEXP browser, SEXP headless, SEXP url, SEXP port, SEXP extra_args, SEXP timeout_ms) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_launch(cpp11::as_cpp<cpp11::decay_t<std::string>>(browser), cpp11::as_cpp<cpp11::decay_t<bool>>(headless), cpp11::as_cpp<cpp11::decay_t<std::string>>(url), cpp11::as_cpp<cpp11::decay_t<int>>(port), cpp11::as_cpp<cpp11::decay_t<cpp11::strings>>(extra_args), cpp11::as_cpp<cpp11::decay_t<int>>(timeout_ms)));
+  END_CPP11
+}
+// cdp_client.cpp
+cpp11::writable::list cpp_cdp_connect(std::string host, int port, int target_index, int timeout_ms);
+extern "C" SEXP _winrpa_cpp_cdp_connect(SEXP host, SEXP port, SEXP target_index, SEXP timeout_ms) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_connect(cpp11::as_cpp<cpp11::decay_t<std::string>>(host), cpp11::as_cpp<cpp11::decay_t<int>>(port), cpp11::as_cpp<cpp11::decay_t<int>>(target_index), cpp11::as_cpp<cpp11::decay_t<int>>(timeout_ms)));
+  END_CPP11
+}
+// cdp_client.cpp
+void cpp_cdp_close(SEXP sess_xptr);
+extern "C" SEXP _winrpa_cpp_cdp_close(SEXP sess_xptr) {
+  BEGIN_CPP11
+    cpp_cdp_close(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr));
+    return R_NilValue;
+  END_CPP11
+}
+// cdp_client.cpp
+std::string cpp_cdp_send(SEXP sess_xptr, std::string method, std::string params_json, int timeout_ms);
+extern "C" SEXP _winrpa_cpp_cdp_send(SEXP sess_xptr, SEXP method, SEXP params_json, SEXP timeout_ms) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_send(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(method), cpp11::as_cpp<cpp11::decay_t<std::string>>(params_json), cpp11::as_cpp<cpp11::decay_t<int>>(timeout_ms)));
+  END_CPP11
+}
+// cdp_client.cpp
+cpp11::writable::list cpp_cdp_event_state(SEXP sess_xptr);
+extern "C" SEXP _winrpa_cpp_cdp_event_state(SEXP sess_xptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_event_state(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr)));
+  END_CPP11
+}
+// cdp_client.cpp
+std::string cpp_cdp_write_base64_file(std::string b64, std::string out_path);
+extern "C" SEXP _winrpa_cpp_cdp_write_base64_file(SEXP b64, SEXP out_path) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_write_base64_file(cpp11::as_cpp<cpp11::decay_t<std::string>>(b64), cpp11::as_cpp<cpp11::decay_t<std::string>>(out_path)));
+  END_CPP11
+}
+// cdp_client.cpp
+SEXP cpp_cdp_parse_json(std::string raw_json);
+extern "C" SEXP _winrpa_cpp_cdp_parse_json(SEXP raw_json) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_cdp_parse_json(cpp11::as_cpp<cpp11::decay_t<std::string>>(raw_json)));
+  END_CPP11
+}
 // input_dpi.cpp
 cpp11::writable::list cpp_get_display_metrics();
 extern "C" SEXP _winrpa_cpp_get_display_metrics() {
@@ -128,6 +199,22 @@ int cpp_clipboard_sequence_number();
 extern "C" SEXP _winrpa_cpp_clipboard_sequence_number() {
   BEGIN_CPP11
     return cpp11::as_sexp(cpp_clipboard_sequence_number());
+  END_CPP11
+}
+// input_dpi.cpp
+void cpp_post_click(std::string hwnd_hex, int x, int y, std::string button, bool use_screen_coords);
+extern "C" SEXP _winrpa_cpp_post_click(SEXP hwnd_hex, SEXP x, SEXP y, SEXP button, SEXP use_screen_coords) {
+  BEGIN_CPP11
+    cpp_post_click(cpp11::as_cpp<cpp11::decay_t<std::string>>(hwnd_hex), cpp11::as_cpp<cpp11::decay_t<int>>(x), cpp11::as_cpp<cpp11::decay_t<int>>(y), cpp11::as_cpp<cpp11::decay_t<std::string>>(button), cpp11::as_cpp<cpp11::decay_t<bool>>(use_screen_coords));
+    return R_NilValue;
+  END_CPP11
+}
+// input_dpi.cpp
+void cpp_post_text(std::string hwnd_hex, std::string text);
+extern "C" SEXP _winrpa_cpp_post_text(SEXP hwnd_hex, SEXP text) {
+  BEGIN_CPP11
+    cpp_post_text(cpp11::as_cpp<cpp11::decay_t<std::string>>(hwnd_hex), cpp11::as_cpp<cpp11::decay_t<std::string>>(text));
+    return R_NilValue;
   END_CPP11
 }
 // mta_worker.cpp
@@ -321,6 +408,16 @@ extern "C" {
 static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_abort_triggered",               (DL_FUNC) &_winrpa_cpp_abort_triggered,               0},
     {"_winrpa_cpp_capture_window_bmp",            (DL_FUNC) &_winrpa_cpp_capture_window_bmp,            2},
+    {"_winrpa_cpp_cdp_base64_selftest",           (DL_FUNC) &_winrpa_cpp_cdp_base64_selftest,           1},
+    {"_winrpa_cpp_cdp_close",                     (DL_FUNC) &_winrpa_cpp_cdp_close,                     1},
+    {"_winrpa_cpp_cdp_connect",                   (DL_FUNC) &_winrpa_cpp_cdp_connect,                   4},
+    {"_winrpa_cpp_cdp_event_state",               (DL_FUNC) &_winrpa_cpp_cdp_event_state,               1},
+    {"_winrpa_cpp_cdp_find_browser",              (DL_FUNC) &_winrpa_cpp_cdp_find_browser,              1},
+    {"_winrpa_cpp_cdp_json_selftest",             (DL_FUNC) &_winrpa_cpp_cdp_json_selftest,             0},
+    {"_winrpa_cpp_cdp_launch",                    (DL_FUNC) &_winrpa_cpp_cdp_launch,                    6},
+    {"_winrpa_cpp_cdp_parse_json",                (DL_FUNC) &_winrpa_cpp_cdp_parse_json,                1},
+    {"_winrpa_cpp_cdp_send",                      (DL_FUNC) &_winrpa_cpp_cdp_send,                      4},
+    {"_winrpa_cpp_cdp_write_base64_file",         (DL_FUNC) &_winrpa_cpp_cdp_write_base64_file,         2},
     {"_winrpa_cpp_clipboard_get_text",            (DL_FUNC) &_winrpa_cpp_clipboard_get_text,            0},
     {"_winrpa_cpp_clipboard_sequence_number",     (DL_FUNC) &_winrpa_cpp_clipboard_sequence_number,     0},
     {"_winrpa_cpp_clipboard_set_text",            (DL_FUNC) &_winrpa_cpp_clipboard_set_text,            1},
@@ -338,6 +435,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_mouse_position",                (DL_FUNC) &_winrpa_cpp_mouse_position,                0},
     {"_winrpa_cpp_mouse_scroll",                  (DL_FUNC) &_winrpa_cpp_mouse_scroll,                  2},
     {"_winrpa_cpp_normalize_virtual_coords",      (DL_FUNC) &_winrpa_cpp_normalize_virtual_coords,      6},
+    {"_winrpa_cpp_post_click",                    (DL_FUNC) &_winrpa_cpp_post_click,                    5},
+    {"_winrpa_cpp_post_text",                     (DL_FUNC) &_winrpa_cpp_post_text,                     2},
     {"_winrpa_cpp_reset_abort",                   (DL_FUNC) &_winrpa_cpp_reset_abort,                   0},
     {"_winrpa_cpp_ring_buffer_selftest",          (DL_FUNC) &_winrpa_cpp_ring_buffer_selftest,          1},
     {"_winrpa_cpp_shutdown_runtime",              (DL_FUNC) &_winrpa_cpp_shutdown_runtime,              0},

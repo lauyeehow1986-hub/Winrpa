@@ -2,21 +2,28 @@
 % Please edit documentation in R/zzz.R
 \name{rpa_session_check}
 \alias{rpa_session_check}
-\title{Verify That an Active Interactive Windows Desktop Session Is Ready}
+\title{Verify That an Active Desktop or Runtime Session Is Ready}
 \usage{
-rpa_session_check(allow_non_windows = FALSE)
+rpa_session_check(allow_non_windows = FALSE, require_interactive = TRUE)
 }
 \arguments{
 \item{allow_non_windows}{Logical scalar; if \code{TRUE}, skips the Windows OS
 check (used internally by platform-independent helpers).}
+
+\item{require_interactive}{Logical scalar; if \code{TRUE}, verifies an unlocked
+interactive desktop via \code{rpa_is_interactive_desktop()}.}
 }
 \value{
 Invisibly returns \code{TRUE} when the session is ready; otherwise throws
 an informative error.
 }
 \description{
-Checks that the current platform is Windows, an interactive input desktop
-is unlocked and attached, and the emergency abort flag is clear.
+Checks that the current platform is Windows (unless \code{allow_non_windows} is
+\code{TRUE}), the emergency abort flag is clear, and -- when \code{require_interactive}
+is \code{TRUE} -- an unlocked interactive Windows input desktop is attached. Headless
+Web CDP (\verb{rpa_web_*}) and background \code{PostMessageW} (\verb{rpa_post_*}) helpers
+set \code{require_interactive = FALSE} so they can run without claiming the
+active console.
 }
 \examples{
 \dontshow{if (interactive() && .Platform$OS.type == "windows") withAutoprint(\{ # examplesIf}

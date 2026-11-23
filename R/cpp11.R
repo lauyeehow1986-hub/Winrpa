@@ -24,6 +24,46 @@ cpp_hook_drain <- function() {
   .Call(`_winrpa_cpp_hook_drain`)
 }
 
+cpp_cdp_json_selftest <- function() {
+  .Call(`_winrpa_cpp_cdp_json_selftest`)
+}
+
+cpp_cdp_base64_selftest <- function(b64) {
+  .Call(`_winrpa_cpp_cdp_base64_selftest`, b64)
+}
+
+cpp_cdp_find_browser <- function(preference) {
+  .Call(`_winrpa_cpp_cdp_find_browser`, preference)
+}
+
+cpp_cdp_launch <- function(browser, headless, url, port, extra_args, timeout_ms) {
+  .Call(`_winrpa_cpp_cdp_launch`, browser, headless, url, port, extra_args, timeout_ms)
+}
+
+cpp_cdp_connect <- function(host, port, target_index, timeout_ms) {
+  .Call(`_winrpa_cpp_cdp_connect`, host, port, target_index, timeout_ms)
+}
+
+cpp_cdp_close <- function(sess_xptr) {
+  invisible(.Call(`_winrpa_cpp_cdp_close`, sess_xptr))
+}
+
+cpp_cdp_send <- function(sess_xptr, method, params_json, timeout_ms) {
+  .Call(`_winrpa_cpp_cdp_send`, sess_xptr, method, params_json, timeout_ms)
+}
+
+cpp_cdp_event_state <- function(sess_xptr) {
+  .Call(`_winrpa_cpp_cdp_event_state`, sess_xptr)
+}
+
+cpp_cdp_write_base64_file <- function(b64, out_path) {
+  .Call(`_winrpa_cpp_cdp_write_base64_file`, b64, out_path)
+}
+
+cpp_cdp_parse_json <- function(raw_json) {
+  .Call(`_winrpa_cpp_cdp_parse_json`, raw_json)
+}
+
 cpp_get_display_metrics <- function() {
   .Call(`_winrpa_cpp_get_display_metrics`)
 }
@@ -66,6 +106,14 @@ cpp_clipboard_set_text <- function(text) {
 
 cpp_clipboard_sequence_number <- function() {
   .Call(`_winrpa_cpp_clipboard_sequence_number`)
+}
+
+cpp_post_click <- function(hwnd_hex, x, y, button, use_screen_coords) {
+  invisible(.Call(`_winrpa_cpp_post_click`, hwnd_hex, x, y, button, use_screen_coords))
+}
+
+cpp_post_text <- function(hwnd_hex, text) {
+  invisible(.Call(`_winrpa_cpp_post_text`, hwnd_hex, text))
 }
 
 cpp_shutdown_runtime <- function() {

@@ -2,6 +2,7 @@
 #define R_NO_REMAP
 #endif
 #include <cpp11.hpp>
+#include "cdp_client.h"
 #include "mta_worker.h"
 #include "capture_hooks.h"
 #include "winrpa_core.h"
@@ -129,6 +130,7 @@ void release_uia_element(UiaElementHandle* h) {
 
 [[cpp11::register]]
 void cpp_shutdown_runtime() {
+  winrpa::shutdown_all_cdp_sessions();
   winrpa::stop_runtime_hooks();
 #ifdef _WIN32
   winrpa::MtaComWorker::instance().shutdown();

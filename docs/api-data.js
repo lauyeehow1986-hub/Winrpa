@@ -1,4 +1,4 @@
-/* Complete API catalog covering all 49 exported functions + 4 S3 methods in winrpa */
+/* Complete API catalog covering all 67 exported functions + 8 S3 methods in winrpa */
 window.WINRPA_API = [
   /* ===================== Windows & Selectors (17) ===================== */
   {
@@ -255,6 +255,24 @@ window.WINRPA_API = [
     tags: ["MTA COM", "Grid/Table Pattern"],
     example: 'grid <- rpa_find(win, control_type = "DataGrid")\ndf <- rpa_read_table(grid)\nhead(df)'
   },
+  {
+    name: "rpa_post_click",
+    category: "UI Actions & Tables",
+    signature: "rpa_post_click(target, button = c(\"left\", \"right\"), x = NULL, y = NULL)",
+    summary: "Sends non-stealing WM_LBUTTONDOWN/UP or WM_RBUTTONDOWN/UP messages directly to a background Win32 HWND via PostMessageW() without moving the physical mouse cursor or claiming foreground focus.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["Background HWND", "PostMessageW", "Non-Stealing"],
+    example: 'win <- rpa_window(class_name = "Notepad")\nrpa_post_click(win)'
+  },
+  {
+    name: "rpa_post_text",
+    category: "UI Actions & Tables",
+    signature: "rpa_post_text(target, text, secret = FALSE)",
+    summary: "Streams UTF-16 WM_CHAR messages directly to a background Win32 control HWND via PostMessageW() without touching SendInput or the Windows clipboard.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["Background HWND", "PostMessageW", "Secret Safe"],
+    example: 'rpa_post_text("0x1234", "Background text line\n", secret = FALSE)'
+  },
 
   /* ===================== Mouse & Multi-Monitor DPI (7) ===================== */
   {
@@ -410,11 +428,11 @@ window.WINRPA_API = [
   {
     name: "rpa_session_check",
     category: "Safety, Kill-Switch & Hooks",
-    signature: "rpa_session_check(allow_non_windows = FALSE)",
-    summary: "Verifies pre-flight execution readiness: confirms Windows OS (unless allow_non_windows=TRUE), unlocked interactive desktop, and cleared emergency abort flag.",
+    signature: "rpa_session_check(allow_non_windows = FALSE, require_interactive = TRUE)",
+    summary: "Verifies pre-flight execution readiness: confirms Windows OS (unless allow_non_windows=TRUE), cleared emergency abort flag, and active desktop when require_interactive=TRUE (headless CDP and background PostMessageW pass FALSE).",
     returns: "Invisibly returns TRUE or aborts with a clear diagnostic message.",
     tags: ["Session Guard", "Pre-Flight"],
-    example: 'rpa_session_check()'
+    example: 'rpa_session_check()\nrpa_session_check(require_interactive = FALSE)'
   },
   {
     name: "rpa_is_interactive_desktop",
@@ -487,5 +505,187 @@ window.WINRPA_API = [
     returns: "Logical scalar indicating success.",
     tags: ["WH_KEYBOARD_LL", "Cleanup"],
     example: 'rpa_hook_stop()'
+  },
+
+  /* ===================== Web Browser CDP (Edge/Chrome) (20) ===================== */
+  {
+    name: "rpa_web_launch",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_launch(browser = c(\"auto\", \"edge\", \"chrome\"), headless = TRUE, url = \"about:blank\", port = NULL, args = character(), timeout = 15)",
+    summary: "Launches Microsoft Edge or Google Chrome in headless (--headless=new) or visible mode with a dedicated remote debugging port and connects over native WinHTTP WebSockets.",
+    returns: "A \"winrpa_web_session\" handle.",
+    tags: ["WinHTTP WS", "Headless CDP", "Zero R Deps"],
+    example: 'sess <- rpa_web_launch(browser = "auto", headless = TRUE)\nrpa_web_close(sess)'
+  },
+  {
+    name: "rpa_web_connect",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_connect(port = 9222L, host = \"127.0.0.1\", target_index = 1L, timeout = 8)",
+    summary: "Attaches directly to an already-running Edge or Chrome instance started with --remote-debugging-port over loopback HTTP + WinHTTP WebSocket.",
+    returns: "A \"winrpa_web_session\" handle.",
+    tags: ["WinHTTP WS", "Existing Browser"],
+    example: 'sess <- rpa_web_connect(port = 9222L)'
+  },
+  {
+    name: "rpa_web_close",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_close(session)",
+    summary: "Gracefully closes the WinHTTP WebSocket session, terminates managed browser processes, and cleans up temporary profile directories.",
+    returns: "Invisibly returns NULL.",
+    tags: ["Zero-Hang Cleanup", "CDP"],
+    example: 'rpa_web_close(sess)'
+  },
+  {
+    name: "rpa_web_goto",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_goto(session, url, wait = c(\"load\", \"domcontentloaded\", \"none\"), timeout = 15)",
+    summary: "Navigates via CDP Page.navigate and waits deterministically for Page.loadEventFired or Page.domContentEventFired.",
+    returns: "Invisibly returns session for pipe chaining.",
+    tags: ["Navigation", "DOMContentLoaded", "Load Event"],
+    example: 'rpa_web_goto(sess, "https://example.org", wait = "load")'
+  },
+  {
+    name: "rpa_web_find",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_find(session, css = NULL, xpath = NULL, index = 1L)",
+    summary: "Finds a DOM element using standard CSS selectors (document.querySelectorAll) or XPath expressions (document.evaluate) at the 1-based index.",
+    returns: "A \"winrpa_web_element\" handle.",
+    tags: ["CSS", "XPath", "DOM"],
+    example: 'btn <- rpa_web_find(sess, css = "button.submit")\nrpa_web_click(btn)'
+  },
+  {
+    name: "rpa_web_find_all",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_find_all(session, css = NULL, xpath = NULL)",
+    summary: "Finds all matching DOM elements for a CSS selector or XPath expression.",
+    returns: "A list of \"winrpa_web_element\" handles.",
+    tags: ["CSS", "XPath", "DOM"],
+    example: 'links <- rpa_web_find_all(sess, css = "nav a")'
+  },
+  {
+    name: "rpa_web_click",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_click(target, css = NULL, xpath = NULL, button = c(\"left\", \"right\", \"middle\"), clicks = 1L)",
+    summary: "Scrolls a DOM element smoothly into center view and dispatches trusted CDP Input.dispatchMouseEvent events without touching your physical cursor.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["Trusted Mouse", "Headless Safe", "CSS/XPath"],
+    example: 'rpa_web_click(sess, xpath = "//button[text()=\'Submit\']")'
+  },
+  {
+    name: "rpa_web_type",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_type(target, text, css = NULL, xpath = NULL, clear = FALSE, secret = FALSE)",
+    summary: "Focuses a DOM input (optionally clearing value first) and inserts arbitrary Unicode text via CDP Input.insertText; masks secret=TRUE strings on error.",
+    returns: "Invisibly returns target for pipe chaining.",
+    tags: ["Input.insertText", "Secret Safe", "Headless Safe"],
+    example: 'rpa_web_type(sess, "hello world", css = "#search", clear = TRUE)'
+  },
+  {
+    name: "rpa_web_text",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_text(target, css = NULL, xpath = NULL, attr = NULL)",
+    summary: "Reads rendered text (innerText / textContent) or a specific HTML attribute from a DOM element matching CSS or XPath.",
+    returns: "Character scalar (or NULL if absent).",
+    tags: ["CSS", "XPath", "Scraping"],
+    example: 'rpa_web_text(sess, css = "h1")\nrpa_web_text(sess, css = "a.main", attr = "href")'
+  },
+  {
+    name: "rpa_web_eval",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_eval(session, expression)",
+    summary: "Evaluates arbitrary JavaScript in the page context via Runtime.evaluate (awaiting Promises) and parses JSON results natively in C++17.",
+    returns: "The evaluated JS value converted cleanly to R primitives/lists.",
+    tags: ["Runtime.evaluate", "Await Promise", "C++ JSON"],
+    example: 'rpa_web_eval(sess, "document.title")'
+  },
+  {
+    name: "rpa_web_wait_load",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_wait_load(session, state = c(\"load\", \"domcontentloaded\"), timeout = 15, interval = 0.05)",
+    summary: "Waits until document.readyState reaches interactive/complete for domcontentloaded or complete for load, honoring the global kill-switch.",
+    returns: "Invisibly returns session.",
+    tags: ["DOMContentLoaded", "Abort-Aware"],
+    example: 'rpa_web_wait_load(sess, state = "domcontentloaded")'
+  },
+  {
+    name: "rpa_web_wait_network_idle",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_wait_network_idle(session, idle_ms = 500L, max_inflight = 0L, timeout = 15, interval = 0.05)",
+    summary: "Tracks CDP Network.requestWillBeSent vs loadingFinished/loadingFailed events in C++ and waits until <= max_inflight requests remain active continuously for idle_ms ms.",
+    returns: "Invisibly returns session.",
+    tags: ["XHR/Fetch Idle", "Network Events"],
+    example: 'rpa_web_wait_network_idle(sess, idle_ms = 500L, timeout = 15)'
+  },
+  {
+    name: "rpa_web_wait_selector",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_wait_selector(session, css = NULL, xpath = NULL, visible = TRUE, timeout = 10, interval = 0.05)",
+    summary: "Polls for a CSS or XPath selector until present (and visible with non-zero bounds when visible=TRUE), honoring the global kill-switch.",
+    returns: "A \"winrpa_web_element\" handle.",
+    tags: ["CSS/XPath Wait", "Deterministic"],
+    example: 'el <- rpa_web_wait_selector(sess, css = "#results-ready", timeout = 10)'
+  },
+  {
+    name: "rpa_web_screenshot",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_screenshot(session, path = tempfile(pattern = \"winrpa_web_\", fileext = \".png\"), full_page = FALSE)",
+    summary: "Captures viewport or full-page lossless PNG screenshots via CDP Page.captureScreenshot and Base64-decodes directly in C++17.",
+    returns: "Character scalar path to the written PNG file.",
+    tags: ["PNG Capture", "Full Page", "C++ Base64"],
+    example: 'rpa_web_screenshot(sess, path = "page.png", full_page = TRUE)'
+  },
+  {
+    name: "rpa_web_set_files",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_set_files(target, files, css = NULL, xpath = NULL)",
+    summary: "Populates an <input type=\"file\"> control directly via DOM.requestNode + DOM.setFileInputFiles without opening a native OS file picker dialog.",
+    returns: "Invisibly returns target.",
+    tags: ["Headless Upload", "DOM.setFileInputFiles"],
+    example: 'rpa_web_set_files(sess, "report.pdf", css = "input[type=file]")'
+  },
+  {
+    name: "rpa_web_window",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "rpa_web_window(session)",
+    summary: "Bridges a visible (headless = FALSE) CDP browser session to a desktop UIA winrpa_element handle for interacting with OS SSO prompts or print dialogs.",
+    returns: "A \"winrpa_element\" handle for the browser window.",
+    tags: ["Hybrid Bridge", "UIA Window"],
+    example: 'sess <- rpa_web_launch(headless = FALSE)\nwin <- rpa_web_window(sess) |> rpa_window_focus()'
+  },
+  {
+    name: "format.winrpa_web_session",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "format.winrpa_web_session(x, ...)",
+    summary: "Formats a winrpa_web_session handle with browser type, debugging port, PID, and headless flag.",
+    returns: "Character scalar summary.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'format(sess)'
+  },
+  {
+    name: "print.winrpa_web_session",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "print.winrpa_web_session(x, ...)",
+    summary: "Prints a formatted winrpa_web_session summary.",
+    returns: "Invisibly returns x.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'print(sess)'
+  },
+  {
+    name: "format.winrpa_web_element",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "format.winrpa_web_element(x, ...)",
+    summary: "Formats a winrpa_web_element handle showing selector strategy (css/xpath), selector string, and match index.",
+    returns: "Character scalar summary.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'format(btn)'
+  },
+  {
+    name: "print.winrpa_web_element",
+    category: "Web Browser CDP (Edge/Chrome)",
+    signature: "print.winrpa_web_element(x, ...)",
+    summary: "Prints a formatted winrpa_web_element summary.",
+    returns: "Invisibly returns x.",
+    tags: ["S3 Method", "Cross-Platform"],
+    example: 'print(btn)'
   }
 ];

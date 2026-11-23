@@ -591,3 +591,110 @@ rpa_window_close <- function(target) {
   cpp_uia_window_state(target$ptr, "close")
   invisible(NULL)
 }
+
+resolve_bg_hwnd <- function(target) {
+  if (inherits(target, "winrpa_element")) {
+    info <- cpp_uia_element_info(target$ptr)
+    if (!nzchar(info$hwnd)) {
+      rlang::abort("Target winrpa_element does not expose a native HWND.")
+    }
+    return(list(hwnd = info$hwnd, info = info))
+  }
+  if (is.character(target) && length(target) == 1L && !is.na(target) &&
+      grepl("^(0[xX])?[0-9a-fA-F]+$", trimws(target))) {
+    return(list(hwnd = trimws(target), info = NULL))
+  }
+  rlang::abort("'target' must be a 'winrpa_element' object or a hexadecimal HWND string.")
+}
+
+#' Post Non-Stealing Click or Text Messages to a Background Win32 Control
+#'
+#' Sends Win32 window messages (`WM_LBUTTONDOWN`/`WM_LBUTTONUP`,
+#' `WM_RBUTTONDOWN`/`WM_RBUTTONUP`, or `WM_CHAR`) directly to a control's `HWND`
+#' via `PostMessageW()` without moving the user's physical mouse cursor or
+#' stealing foreground window focus. Note that on standard Win32 controls,
+#' `rpa_post_click()` and `rpa_post_text()` work on occluded or unfocused windows
+#' while a Windows session is unlocked; for locked screens or modern web pages,
+#' prefer `rpa_web_*()` headless browser automation.
+#'
+#' @param target A `winrpa_element` exposing a native `HWND`, or a hexadecimal
+#'   `hwnd` string.
+#' @param button Mouse button to simulate (`"left"` or `"right"`).
+#' @param x,y Optional integer screen coordinates; when `NULL` and `target` is a
+#'   `winrpa_element`, clicks the element's bounding center (or client center
+#'   for a raw `hwnd`).
+#' @param text Character scalar to stream via `WM_CHAR`.
+#' @param secret Logical scalar; when `TRUE`, masks `text` from error
+#'   diagnostics.
+#'
+#' @return Invisibly returns `target` for pipe chaining.
+#' @export
+#' @examplesIf interactive() && .Platform$OS.type == "windows"
+#' wins <- rpa_windows()
+#' nrow(wins)
+rpa_post_click <- function(target,
+                           button = c("left", "right"),
+                           x = NULL,
+                           y = NULL) {
+  button <- match.arg(button)
+  has_x <- !is.null(x)
+  has_y <- !is.null(y)
+  if (has_x != has_y) {
+    rlang::abort("'x' and 'y' must both be provided or both be NULL.")
+  }
+  if (has_x && (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+                !is.numeric(y) || length(y) != 1L || is.na(y))) {
+    rlang::abort("'x' and 'y' must be single numeric coordinates.")
+  }
+
+  rpa_session_check(require_interactive = FALSE)
+  resolved <- resolve_bg_hwnd(target)
+
+  if (has_x) {
+    px <- as.integer(x)
+    py <- as.integer(y)
+    use_screen <- TRUE
+  } else if (!is.null(resolved$info)) {
+    info <- resolved$info
+    if (info$right <= info$left || info$bottom <= info$top) {
+      rlang::abort("Target element has an empty bounding rectangle.")
+    }
+    px <- as.integer((info$left + info$right) %/% 2L)
+    py <- as.integer((info$top + info$bottom) %/% 2L)
+    use_screen <- TRUE
+  } else {
+    px <- 0L
+    py <- 0L
+    use_screen <- FALSE
+  }
+
+  cpp_post_click(resolved$hwnd, px, py, button, use_screen)
+  invisible(target)
+}
+
+#' @rdname rpa_post_click
+#' @export
+rpa_post_text <- function(target, text, secret = FALSE) {
+  if (!is.character(text) || length(text) != 1L || is.na(text)) {
+    rlang::abort("'text' must be a single non-NA character string.")
+  }
+  if (!is.logical(secret) || length(secret) != 1L || is.na(secret)) {
+    rlang::abort("'secret' must be a single non-NA logical value.")
+  }
+  rpa_session_check(require_interactive = FALSE)
+  run_post <- function() {
+    resolved <- resolve_bg_hwnd(target)
+    cpp_post_text(resolved$hwnd, text)
+  }
+  if (isTRUE(secret)) {
+    tryCatch(
+      run_post(),
+      error = function(e) {
+        rlang::abort("Failed to post secret text to target window.")
+      }
+    )
+  } else {
+    run_post()
+  }
+  invisible(target)
+}
