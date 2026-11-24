@@ -126,10 +126,10 @@ extern "C" SEXP _winrpa_cpp_cdp_parse_json(SEXP raw_json) {
   END_CPP11
 }
 // cdp_client.cpp
-void cpp_cdp_record_set_active(SEXP sess_xptr, bool active, bool clear);
-extern "C" SEXP _winrpa_cpp_cdp_record_set_active(SEXP sess_xptr, SEXP active, SEXP clear) {
+void cpp_cdp_record_set_active(SEXP sess_xptr, bool active, bool clear, std::string js_source);
+extern "C" SEXP _winrpa_cpp_cdp_record_set_active(SEXP sess_xptr, SEXP active, SEXP clear, SEXP js_source) {
   BEGIN_CPP11
-    cpp_cdp_record_set_active(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr), cpp11::as_cpp<cpp11::decay_t<bool>>(active), cpp11::as_cpp<cpp11::decay_t<bool>>(clear));
+    cpp_cdp_record_set_active(cpp11::as_cpp<cpp11::decay_t<SEXP>>(sess_xptr), cpp11::as_cpp<cpp11::decay_t<bool>>(active), cpp11::as_cpp<cpp11::decay_t<bool>>(clear), cpp11::as_cpp<cpp11::decay_t<std::string>>(js_source));
     return R_NilValue;
   END_CPP11
 }
@@ -482,7 +482,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_winrpa_cpp_cdp_network_filter_selftest",   (DL_FUNC) &_winrpa_cpp_cdp_network_filter_selftest,   0},
     {"_winrpa_cpp_cdp_parse_json",                (DL_FUNC) &_winrpa_cpp_cdp_parse_json,                1},
     {"_winrpa_cpp_cdp_record_drain",              (DL_FUNC) &_winrpa_cpp_cdp_record_drain,              1},
-    {"_winrpa_cpp_cdp_record_set_active",         (DL_FUNC) &_winrpa_cpp_cdp_record_set_active,         3},
+    {"_winrpa_cpp_cdp_record_set_active",         (DL_FUNC) &_winrpa_cpp_cdp_record_set_active,         4},
     {"_winrpa_cpp_cdp_send",                      (DL_FUNC) &_winrpa_cpp_cdp_send,                      4},
     {"_winrpa_cpp_cdp_write_base64_file",         (DL_FUNC) &_winrpa_cpp_cdp_write_base64_file,         2},
     {"_winrpa_cpp_clipboard_get_text",            (DL_FUNC) &_winrpa_cpp_clipboard_get_text,            0},

@@ -547,9 +547,13 @@ class CdpSession {
     teardown(false);
   }
 
-  void set_web_recording(bool active, bool clear_existing) {
+  void set_web_recording(
+      bool active,
+      bool clear_existing,
+      const std::string& js_source = "") {
     std::lock_guard<std::mutex> lock(mu_);
     web_recording_ = active;
+    web_rec_js_ = active ? js_source : "";
     if (clear_existing) {
       rec_events_.clear();
       rec_dropped_ = 0ULL;
@@ -572,6 +576,29 @@ class CdpSession {
       return;
     }
     rec_events_.push_back(payload);
+  }
+
+  void send_flattened_fire_and_forget(
+      HINTERNET ws,
+      const std::string& child_sid,
+      const std::string& method,
+      const std::string& params_json) {
+    if (ws == nullptr || child_sid.empty() || method.empty()) {
+      return;
+    }
+    const std::int64_t id = next_id_.fetch_add(1LL, std::memory_order_relaxed);
+    const std::string params_clean = params_json.empty() ? "{}" : params_json;
+    const std::string frame =
+        "{\"id\":" + std::to_string(id) +
+        ",\"sessionId\":" + cdp::json_escape(child_sid) +
+        ",\"method\":" + cdp::json_escape(method) +
+        ",\"params\":" + params_clean + "}";
+    std::lock_guard<std::mutex> send_lock(send_mu_);
+    (void)WinHttpWebSocketSend(
+        ws,
+        WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+        const_cast<char*>(frame.data()),
+        static_cast<DWORD>(frame.size()));
   }
   void reader_loop() {
     std::string accumulated;
@@ -647,6 +674,36 @@ class CdpSession {
         return;
       }
       const cdp::JsonValue* params = msg.find("params");
+
+      if (method == "Target.attachedToTarget" && params != nullptr) {
+        const std::string child_sid = params->get_string("sessionId");
+        const cdp::JsonValue* ti = params->find("targetInfo");
+        const std::string ttype =
+            (ti != nullptr && ti->is_object()) ? ti->get_string("type") : "";
+        std::string js_copy;
+        HINTERNET ws = nullptr;
+        {
+          std::lock_guard<std::mutex> lock(mu_);
+          if (web_recording_ && connected_ && !stopping_ && h_ws_ != nullptr &&
+              (ttype.empty() || ttype == "iframe")) {
+            js_copy = web_rec_js_;
+            ws = h_ws_;
+          }
+        }
+        if (ws != nullptr && !child_sid.empty() && !js_copy.empty()) {
+          const std::string esc_js = cdp::json_escape(js_copy);
+          send_flattened_fire_and_forget(ws, child_sid, "Runtime.enable", "{}");
+          send_flattened_fire_and_forget(
+              ws, child_sid, "Runtime.addBinding", "{\"name\":\"__winrpa_record\"}");
+          send_flattened_fire_and_forget(
+              ws, child_sid, "Page.addScriptToEvaluateOnNewDocument",
+              "{\"source\":" + esc_js + "}");
+          send_flattened_fire_and_forget(
+              ws, child_sid, "Runtime.evaluate",
+              "{\"expression\":" + esc_js + "}");
+        }
+        return;
+      }
 
       std::lock_guard<std::mutex> lock(mu_);
       if (method == "Page.domContentEventFired") {
@@ -802,6 +859,7 @@ class CdpSession {
   bool connected_ = false;
   bool stopping_ = false;
   bool web_recording_ = false;
+  std::string web_rec_js_;
   std::deque<std::string> rec_events_;
   std::uint64_t rec_dropped_ = 0ULL;
 };
@@ -1251,14 +1309,19 @@ SEXP cpp_cdp_parse_json(std::string raw_json) {
 }
 
 [[cpp11::register]]
-void cpp_cdp_record_set_active(SEXP sess_xptr, bool active, bool clear) {
+void cpp_cdp_record_set_active(
+    SEXP sess_xptr,
+    bool active,
+    bool clear,
+    std::string js_source) {
 #ifdef _WIN32
   winrpa::CdpSession* s = winrpa::unwrap_cdp_session(sess_xptr);
-  s->set_web_recording(active, clear);
+  s->set_web_recording(active, clear, js_source);
 #else
   (void)sess_xptr;
   (void)active;
   (void)clear;
+  (void)js_source;
   winrpa::require_windows_or_stop("cpp_cdp_record_set_active()");
 #endif
 }

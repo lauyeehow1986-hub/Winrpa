@@ -68,8 +68,8 @@ cpp_cdp_parse_json <- function(raw_json) {
   .Call(`_winrpa_cpp_cdp_parse_json`, raw_json)
 }
 
-cpp_cdp_record_set_active <- function(sess_xptr, active, clear) {
-  invisible(.Call(`_winrpa_cpp_cdp_record_set_active`, sess_xptr, active, clear))
+cpp_cdp_record_set_active <- function(sess_xptr, active, clear, js_source) {
+  invisible(.Call(`_winrpa_cpp_cdp_record_set_active`, sess_xptr, active, clear, js_source))
 }
 
 cpp_cdp_record_drain <- function(sess_xptr) {

@@ -95,11 +95,32 @@ cdp_eval_raw <- function(session,
   res$result
 }
 
+build_query_deep_js <- function() {
+  paste0(
+    "function qDeep(sel){",
+    "if(sel.indexOf(' >>> ')===-1){return document.querySelectorAll(sel);}",
+    "var parts=sel.split(' >>> '),roots=[document];",
+    "for(var i=0;i<parts.length;i++){",
+    "var p=parts[i].trim(),next=[];",
+    "for(var r=0;r<roots.length;r++){",
+    "var hit=[];try{hit=roots[r].querySelectorAll(p);}catch(e){hit=[];}",
+    "for(var h=0;h<hit.length;h++){",
+    "if(i<parts.length-1){var node=hit[h];if(node.shadowRoot){next.push(node.shadowRoot);}else if(node.contentDocument){next.push(node.contentDocument);}}",
+    "else{next.push(hit[h]);}",
+    "}",
+    "}",
+    "roots=next;if(roots.length===0)return [];",
+    "}",
+    "return roots;",
+    "}"
+  )
+}
+
 build_locate_js <- function(by, selector, index = 1L) {
   idx0 <- as.integer(index) - 1L
   qsel <- cdp_json_str(selector)
   if (by == "css") {
-    sprintf("(function(){return document.querySelectorAll(%s)[%d] || null;})()", qsel, idx0)
+    sprintf("(function(){%sreturn qDeep(%s)[%d] || null;})()", build_query_deep_js(), qsel, idx0)
   } else {
     sprintf(
       "(function(){var r=document.evaluate(%s,document,null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null);return r.snapshotItem(%d);})()",
@@ -111,7 +132,7 @@ build_locate_js <- function(by, selector, index = 1L) {
 build_count_js <- function(by, selector) {
   qsel <- cdp_json_str(selector)
   if (by == "css") {
-    sprintf("(function(){return document.querySelectorAll(%s).length;})()", qsel)
+    sprintf("(function(){%sreturn qDeep(%s).length;})()", build_query_deep_js(), qsel)
   } else {
     sprintf(
       "(function(){var r=document.evaluate(%s,document,null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null);return r.snapshotLength;})()",
@@ -606,7 +627,7 @@ rpa_web_click <- function(target,
 
   loc_js <- build_locate_js(el$by, el$selector, el$index)
   coords_js <- sprintf(
-    "(function(){var el=%s;if(!el)return null;el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});var r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2,w:r.width,h:r.height};})()",
+    "(function(){var el=%s;if(!el)return null;var ox=0,oy=0,win=el.ownerDocument?el.ownerDocument.defaultView:null;while(win&&win!==window&&win.frameElement){win.frameElement.scrollIntoView({block:'center',inline:'center',behavior:'instant'});var fr=win.frameElement.getBoundingClientRect();ox+=fr.left;oy+=fr.top;win=win.parent;}el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});var r=el.getBoundingClientRect();return {x:ox+r.left+r.width/2,y:oy+r.top+r.height/2,w:r.width,h:r.height};})()",
     loc_js
   )
   coords <- cdp_eval_raw(el$session, coords_js)$value
@@ -670,7 +691,7 @@ rpa_web_type <- function(target,
       "(function(){var el=%s;if(!el)return false;el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});el.focus();%sreturn true;})()",
       loc_js,
       if (isTRUE(clear)) {
-        "if('value' in el){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}));}"
+        "if('value' in el){el.value='';el.dispatchEvent(new Event('input',{bubbles:true,composed:true}));}"
       } else {
         ""
       }
