@@ -1,6 +1,6 @@
 Package: winrpa
 Title: Native Desktop UI Automation and Input Control
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person("Yee How", "Lau", email = "lauyeehow1986@gmail.com", role = c("aut", "cre", "cph"))
 URL: https://lauyeehow1986-hub.github.io/Winrpa/, https://github.com/lauyeehow1986-hub/Winrpa
