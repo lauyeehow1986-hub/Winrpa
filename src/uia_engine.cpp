@@ -495,6 +495,7 @@ SEXP cpp_uia_find_window(
       }
       int len = 0;
       arr->get_Length(&len);
+      winrpa::ComPtr<IUIAutomationElement> first_any;
       for (int i = 0; i < len; ++i) {
         winrpa::ComPtr<IUIAutomationElement> el;
         if (FAILED(arr->GetElement(i, el.put())) || !el) {
@@ -514,8 +515,21 @@ SEXP cpp_uia_find_window(
                 (!class_name.empty() && use_regex) ? &cls_re : nullptr)) {
           continue;
         }
-        out.found = el.detach();
-        break;
+        UIA_HWND raw_hwnd = nullptr;
+        el->get_CachedNativeWindowHandle(&raw_hwnd);
+        const bool is_vis =
+            (raw_hwnd == nullptr || IsWindowVisible(reinterpret_cast<HWND>(raw_hwnd)) != FALSE) &&
+            info.right > info.left && info.bottom > info.top;
+        if (is_vis) {
+          out.found = el.detach();
+          break;
+        }
+        if (!first_any) {
+          first_any = std::move(el);
+        }
+      }
+      if (out.found == nullptr && first_any) {
+        out.found = first_any.detach();
       }
       out.ok = true;
     } catch (const std::exception& e) {

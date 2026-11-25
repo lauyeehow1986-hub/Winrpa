@@ -249,3 +249,98 @@ test_that("rpa_record_emit filters self PID and extra ignore_pids and falls back
   expect_match(txt, 'win <- rpa_wait_window\\(title = "TargetApp"\\)', perl = TRUE)
   expect_match(txt, 'rpa_mouse_click\\(x = win_info\\$left \\+ 55L, y = win_info\\$top \\+ 95L, button = "right"\\)', perl = TRUE)
 })
+
+test_that("rpa_record_emit emits standalone Win key and upgrades Start -> SearchTextBox flows cleanly", {
+  metrics <- winrpa:::cpp_record_system_metrics()
+  self_pid <- if (metrics$self_pid > 0L) metrics$self_pid else 4242L
+
+  # 1. Standalone Win key tap + SearchTextBox typing spanning Start -> Search handoff
+  df_win <- make_mock_desktop_events(
+    kind = c("key_tap", "key_down", "key_down", "key_down", "key_down", "key_down", "key_down", "key_down", "key_down"),
+    timestamp_ms = c(100, 300, 340, 380, 420, 460, 500, 540, 620),
+    vk_code = c(91L, 78L, 79L, 84L, 69L, 80L, 65L, 68L, 13L),
+    key_name = c("win", "n", "o", "t", "e", "p", "a", "d", "enter"),
+    unicode_text = c("", "n", "o", "t", "e", "p", "a", "d", ""),
+    win_title = c("", "Start", "Search", "Search", "Search", "Search", "Search", "Search", "Search"),
+    win_class = c(
+      "", "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow",
+      "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow",
+      "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow"
+    ),
+    win_hwnd = c("", "0x111", "0x222", "0x222", "0x222", "0x222", "0x222", "0x222", "0x222"),
+    win_pid = c(0L, rep(55555L, 8L)),
+    el_automation_id = c("", rep("SearchTextBox", 8L)),
+    el_control_type = c("", rep("Edit", 8L)),
+    el_pid = c(0L, rep(55555L, 8L))
+  )
+
+  rec <- rpa_record_emit(df_win, ignore_self = TRUE, ignore_pids = self_pid)
+  expect_no_error(parse(text = rec$script))
+  txt <- paste(rec$script, collapse = "\n")
+
+  expect_match(txt, 'rpa_key_chord\\(c\\("win", "s"\\)\\)', perl = TRUE)
+  expect_match(txt, "Sys\\.sleep\\(0\\.4\\)", perl = TRUE)
+  expect_match(
+    txt,
+    'win <- rpa_wait_window\\(title = "\\^Search\\$", class_name = "Windows\\.UI\\.Core\\.CoreWindow", regex = TRUE\\)',
+    perl = TRUE
+  )
+  expect_false(grepl("rpa_window_focus(win)", txt, fixed = TRUE))
+  expect_match(txt, 'rpa_wait_find\\(win, automation_id = "SearchTextBox", control_type = "Edit"\\)', perl = TRUE)
+  expect_match(txt, 'rpa_type\\(el_1, "notepad"\\)', perl = TRUE)
+  expect_match(txt, 'rpa_key_chord\\("enter"\\)', perl = TRUE)
+
+  # 2. Standalone Win key tap without SearchTextBox keeps rpa_key_chord("win")
+  df_tap_only <- make_mock_desktop_events(
+    kind = "key_tap",
+    timestamp_ms = 100,
+    vk_code = 91L,
+    key_name = "win",
+    win_title = "",
+    win_class = "",
+    win_hwnd = "",
+    win_pid = 0L,
+    el_pid = 0L
+  )
+  rec_tap <- rpa_record_emit(df_tap_only, ignore_self = TRUE)
+  expect_no_error(parse(text = rec_tap$script))
+  txt_tap <- paste(rec_tap$script, collapse = "\n")
+  expect_match(txt_tap, 'rpa_key_chord\\("win"\\)', perl = TRUE)
+  expect_match(txt_tap, "Sys\\.sleep\\(0\\.4\\)", perl = TRUE)
+
+  # 3. Taskbar Start button click followed by SearchTextBox upgrades cleanly to Win+S
+  df_start_click <- make_mock_desktop_events(
+    kind = c("mouse_down", "mouse_up", "key_down", "key_down", "key_down"),
+    timestamp_ms = c(100, 140, 350, 390, 430),
+    button = c("left", "left", "", "", ""),
+    vk_code = c(0L, 0L, 67L, 77L, 68L),
+    key_name = c("", "", "c", "m", "d"),
+    unicode_text = c("", "", "c", "m", "d"),
+    win_title = c("", "", "Search", "Search", "Search"),
+    win_class = c("Shell_TrayWnd", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow", "Windows.UI.Core.CoreWindow"),
+    win_hwnd = c("0x10", "0x10", "0x20", "0x20", "0x20"),
+    el_name = c("Start", "Start", "", "", ""),
+    el_automation_id = c("StartButton", "StartButton", "SearchTextBox", "SearchTextBox", "SearchTextBox"),
+    el_control_type = c("Button", "Button", "Edit", "Edit", "Edit")
+  )
+  rec_click <- rpa_record_emit(df_start_click, ignore_self = FALSE)
+  expect_no_error(parse(text = rec_click$script))
+  txt_click <- paste(rec_click$script, collapse = "\n")
+  expect_match(txt_click, 'rpa_key_chord\\(c\\("win", "s"\\)\\)', perl = TRUE)
+  expect_false(grepl("Shell_TrayWnd", txt_click, fixed = TRUE))
+  expect_match(txt_click, 'rpa_type\\(el_1, "cmd"\\)', perl = TRUE)
+
+  # 4. Win+R modifier chord emits c("win", "r") cleanly
+  df_winr <- make_mock_desktop_events(
+    kind = "key_down",
+    timestamp_ms = 100,
+    vk_code = 82L,
+    modifiers = 8L,
+    key_name = "r",
+    win_title = "Program Manager",
+    win_class = "Progman"
+  )
+  rec_winr <- rpa_record_emit(df_winr, ignore_self = FALSE)
+  expect_no_error(parse(text = rec_winr$script))
+  expect_match(paste(rec_winr$script, collapse = "\n"), 'rpa_key_chord\\(c\\("win", "r"\\)\\)', perl = TRUE)
+})

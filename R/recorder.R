@@ -62,6 +62,30 @@ clean_window_title <- function(title) {
   sub("^\\*+\\s*", "", trimws(title))
 }
 
+escape_regex_literal <- function(s) {
+  gsub("([.^$|?*+()\\[\\]{}\\\\])", "\\\\\\1", as.character(s), perl = TRUE)
+}
+
+is_shell_flyout_window <- function(wtitle, wclass) {
+  cls <- as.character(wclass %||% "")
+  ttl <- tolower(clean_window_title(wtitle))
+  (cls %in% c("Windows.UI.Core.CoreWindow", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "XamlExplorerHostIslandWindow")) ||
+    (ttl %in% c("start", "search"))
+}
+
+is_start_trigger_step <- function(st) {
+  if (identical(st$type, "key_chord") && identical(tolower(as.character(st$chord)), "win")) {
+    return(TRUE)
+  }
+  identical(st$type, "click") &&
+    (as.character(st$win_class %||% "") %in% c("Shell_TrayWnd", "Shell_SecondaryTrayWnd")) &&
+    identical(tolower(as.character(st$el_name %||% "")), "start")
+}
+
+is_search_textbox_step <- function(st) {
+  identical(as.character(st$el_automation_id %||% ""), "SearchTextBox")
+}
+
 pick_desktop_selector <- function(step) {
   aid <- as.character(step$el_automation_id %||% "")
   nm <- as.character(step$el_name %||% "")
@@ -379,6 +403,29 @@ normalize_desktop_steps <- function(df,
         st$text <- ut
         append_raw(st)
       }
+    } else if (k == "key_tap") {
+      st <- row_snapshot(i)
+      kn <- tolower(key_name[i])
+      if (nzchar(kn)) {
+        st$type <- "key_chord"
+        st$chord <- kn
+        st$win_title <- ""
+        st$win_class <- ""
+        st$win_hwnd <- ""
+        append_raw(st)
+      }
+    }
+  }
+
+  # Normalize Start/Search handoff targets before typing coalescing so
+  # SearchTextBox keystrokes spanning Start -> Search merge into one rpa_type().
+  for (idx in seq_along(raw_steps)) {
+    if (is_search_textbox_step(raw_steps[[idx]]) &&
+        tolower(clean_window_title(raw_steps[[idx]]$win_title)) %in% c("", "start", "search")) {
+      raw_steps[[idx]]$win_title <- "Search"
+      raw_steps[[idx]]$win_class <- "Windows.UI.Core.CoreWindow"
+      raw_steps[[idx]]$win_hwnd <- ""
+      raw_steps[[idx]]$win_pid <- 0L
     }
   }
 
@@ -440,6 +487,19 @@ normalize_desktop_steps <- function(df,
     }
 
     merged[[m_cnt + 1L]] <- st
+  }
+
+  if (length(merged) >= 2L) {
+    for (j in seq_len(length(merged) - 1L)) {
+      if (is_start_trigger_step(merged[[j]]) &&
+          is_search_textbox_step(merged[[j + 1L]])) {
+        merged[[j]]$type <- "key_chord"
+        merged[[j]]$chord <- c("win", "s")
+        merged[[j]]$win_title <- ""
+        merged[[j]]$win_class <- ""
+        merged[[j]]$win_hwnd <- ""
+      }
+    }
   }
 
   merged
@@ -731,24 +791,42 @@ rpa_record_emit <- function(recording,
   win_info_emitted <- FALSE
 
   emit_window_if_needed <- function(st) {
+    wtitle <- clean_window_title(st$win_title)
+    wclass <- as.character(st$win_class %||% "")
+    if (!nzchar(wtitle) && !nzchar(wclass)) {
+      return(FALSE)
+    }
     wkey <- win_key_for_row(st)
     if (identical(wkey, current_win_key)) {
       return(FALSE)
     }
-    wtitle <- clean_window_title(st$win_title)
-    wclass <- as.character(st$win_class %||% "")
+    flyout <- is_shell_flyout_window(wtitle, wclass)
     wargs <- list()
-    if (nzchar(wtitle)) {
-      wargs$title <- wtitle
-    } else if (nzchar(wclass)) {
-      wargs$class_name <- wclass
+    if (flyout) {
+      if (nzchar(wtitle)) {
+        wargs$title <- paste0("^", escape_regex_literal(wtitle), "$")
+        if (nzchar(wclass)) {
+          wargs$class_name <- wclass
+        }
+        wargs$regex <- TRUE
+      } else {
+        wargs$class_name <- wclass
+      }
+    } else {
+      if (nzchar(wtitle)) {
+        wargs$title <- wtitle
+      } else if (nzchar(wclass)) {
+        wargs$class_name <- wclass
+      }
     }
     if (length(wargs) > 0L) {
       lines <<- c(
         lines,
-        sprintf("win <- rpa_wait_window(%s)", format_named_call_args(wargs)),
-        "rpa_window_focus(win)"
+        sprintf("win <- rpa_wait_window(%s)", format_named_call_args(wargs))
       )
+      if (!flyout) {
+        lines <<- c(lines, "rpa_window_focus(win)")
+      }
     }
     current_win_key <<- wkey
     current_el_key <<- NULL
@@ -791,6 +869,9 @@ rpa_record_emit <- function(recording,
       } else {
         quoted <- paste(vapply(chord, r_quote_str, character(1L)), collapse = ", ")
         lines <- c(lines, sprintf("rpa_key_chord(c(%s))", quoted))
+      }
+      if (identical(tolower(chord), "win") || identical(tolower(chord), c("win", "s"))) {
+        lines <- c(lines, "Sys.sleep(0.4)")
       }
       prev_ts <- st$timestamp_ms
       next

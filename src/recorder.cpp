@@ -544,11 +544,42 @@ class DesktopRecorder {
       std::int64_t& last_mouse_ts,
       ResolvedTarget& focused_target,
       bool& focus_dirty,
-      std::uint64_t& last_key_fg) {
+      std::uint64_t& last_key_fg,
+      bool& win_tap_pending) {
     for (const RawRecordEvent& ev : batch) {
       const auto kind = static_cast<RecordEventKind>(ev.kind);
-      if (kind == RecordEventKind::kKeyUp || kind == RecordEventKind::kNone) {
+      if (kind == RecordEventKind::kKeyUp) {
+        if ((ev.vk_code == VK_LWIN || ev.vk_code == VK_RWIN) && win_tap_pending) {
+          win_tap_pending = false;
+          focus_dirty = true;
+          RecordedAction tap;
+          tap.kind = "key_tap";
+          tap.timestamp_ms = ev.timestamp_ms;
+          tap.vk_code = static_cast<int>(ev.vk_code);
+          tap.scan_code = static_cast<int>(ev.scan_code);
+          tap.modifiers = 0;
+          tap.key_name = "win";
+          {
+            std::lock_guard<std::mutex> lock(mu_);
+            actions_.push_back(std::move(tap));
+          }
+        }
         continue;
+      }
+      if (kind == RecordEventKind::kNone) {
+        continue;
+      }
+      if (kind == RecordEventKind::kKeyDown) {
+        if (ev.vk_code == VK_LWIN || ev.vk_code == VK_RWIN) {
+          win_tap_pending = true;
+          continue;
+        }
+        if (!is_modifier_vk_code(ev.vk_code)) {
+          win_tap_pending = false;
+        }
+      } else if (kind == RecordEventKind::kMouseDown ||
+                 kind == RecordEventKind::kMouseWheel) {
+        win_tap_pending = false;
       }
 
       RecordedAction act;
@@ -617,7 +648,11 @@ class DesktopRecorder {
           } else {
             read_win32_window_meta(fg, focused_target);
           }
-          focus_dirty = false;
+          focus_dirty =
+              (focused_target.win_title == "Start") ||
+              (focused_target.el_control_type == "Button") ||
+              (focused_target.win_class == "Windows.UI.Core.CoreWindow" &&
+               focused_target.el_automation_id != "SearchTextBox");
           last_key_fg = ev.fg_hwnd;
         }
         target = focused_target;
@@ -702,6 +737,7 @@ class DesktopRecorder {
     ResolvedTarget focused_target;
     bool focus_dirty = true;
     std::uint64_t last_key_fg = 0ULL;
+    bool win_tap_pending = false;
     std::vector<RawRecordEvent> batch;
 
     for (;;) {
@@ -711,7 +747,7 @@ class DesktopRecorder {
         resolve_batch(
             batch, uia.get(), req.get(), root.get(), walker.get(),
             last_mouse_target, last_mouse_button, last_mouse_ts,
-            focused_target, focus_dirty, last_key_fg);
+            focused_target, focus_dirty, last_key_fg, win_tap_pending);
       }
       if (stopping) {
         // Final drain after hooks stopped guarantees zero left-behind raw events.
@@ -720,7 +756,7 @@ class DesktopRecorder {
           resolve_batch(
               batch, uia.get(), req.get(), root.get(), walker.get(),
               last_mouse_target, last_mouse_button, last_mouse_ts,
-              focused_target, focus_dirty, last_key_fg);
+              focused_target, focus_dirty, last_key_fg, win_tap_pending);
         }
         break;
       }
